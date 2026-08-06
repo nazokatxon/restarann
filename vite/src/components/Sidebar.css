@@ -1,0 +1,263 @@
+/* ============================================= */
+/* OFITSIANT (WAITER) - PASTKI GORIZONTAL STRIP */
+/* ============================================= */
+.sb-sidebar-waiter {
+  position: fixed !important;
+  bottom: 16px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  top: auto !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-around !important;
+  gap: 8px;
+  background: #ffffff;
+  border-radius: 32px;
+  padding: 8px 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  width: auto;
+  min-width: 280px;
+  max-width: 92vw;
+  height: auto;
+  z-index: 999 !important;
+}
+
+.sb-nav-item-waiter {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  color: #9ca3af;
+  text-decoration: none;
+  transition: all 0.25s ease;
+  position: relative;
+}
+
+.sb-nav-item-waiter:active {
+  transform: scale(0.95);
+}
+
+.sb-nav-item-waiter.active {
+  background: rgba(115, 69, 4, 0.85); 
+  color: #ffffff;
+}
+
+.sb-nav-label-waiter {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ============================================= */
+/* DESKTOP SIDEBAR (ADMIN, KASSIYA, OSHXONA)    */
+/* ============================================= */
+.sb-sidebar-desktop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 80px;
+  height: 100vh;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  /* Pastki tugmalar ekrandan chiqib ketmasligi uchun paddinglar moslandi */
+  padding: 12px 0 20px 0;
+  z-index: 100;
+  box-sizing: border-box;
+  overflow-y: auto; /* Ekran balandligi kichiklashsa ham sig'ishi uchun */
+}
+
+.sb-top-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.sb-bottom-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px; /* Til va Chiqish tugmasi orasidagi chiroyli oraliq */
+  width: 100%;
+  padding-bottom: 4px;
+}
+
+.sb-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #1f2937;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.sb-nav-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+.sb-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 8px 0;
+  border-radius: 14px;
+  color: #9ca3af;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.sb-nav-item.active {
+  background-color: #1f2937;
+  color: #ffffff !important;
+}
+
+.sb-nav-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sb-logout-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 4px 0;
+  transition: color 0.2s ease;
+}
+
+.sb-logout-btn:hover {
+  color: #ef4444;
+}
+
+.sb-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sb-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Lang Switcher */
+.sb-lang-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.sb-lang-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+}
+
+.sb-lang-code {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sb-lang-dropdown.direction-right {
+  position: absolute;
+  left: 75px;
+  bottom: 0;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 110;
+}
+.sb-lang-option {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sb-lang-option.selected {
+  background: #1f2937;
+  color: #ffffff;
+}
+
+/* Modal */
+.sb-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.sb-modal-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 24px;
+  width: 90%;
+  max-width: 320px;
+  text-align: center;
+}
+
+.sb-modal-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+}
+
+.sb-modal-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.sb-modal-text { font-size: 13px; color: #6b7280; margin-bottom: 18px; }
+.sb-modal-actions { display: flex; gap: 10px; }
+.sb-btn-confirm, .sb-btn-cancel { flex: 1; padding: 10px 0; border-radius: 12px; border: none; font-weight: 600; font-size: 13px; cursor: pointer; }
+.sb-btn-confirm { background: #ef4444; color: #ffffff; }
+.sb-btn-cancel { background: #f3f4f6; color: #374151; }

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AI Cafe</string>
+    <string name="title_activity_main">AI Cafe</string>
+    <string name="package_name">com.shn.aicafe</string>
+    <string name="custom_url_scheme">com.shn.aicafe</string>
+</resources>

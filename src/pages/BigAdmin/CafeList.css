@@ -1,0 +1,242 @@
+
+@keyframes modalFadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes modalPopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(24px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes fieldSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ===== Modal poydevori ===== */
+.cafe-modal-overlay {
+  animation: modalFadeIn 0.25s ease-out forwards;
+  backdrop-filter: blur(3px);
+}
+
+.cafe-modal-box {
+  animation: modalPopIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  border-radius: 24px !important;
+  box-shadow: 0 25px 60px -12px rgba(120, 53, 15, 0.35),
+    0 0 0 1px rgba(217, 119, 6, 0.08);
+  border: none !important;
+  overflow: hidden;
+}
+
+/* ===== Sarlavha bloki (gradient) ===== */
+.cafe-modal-header {
+  background: linear-gradient(135deg, #b45309 0%, #d97706 45%, #f59e0b 100%);
+  background-size: 200% 200%;
+  animation: shimmer 6s ease-in-out infinite;
+  padding: 22px 24px 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.cafe-modal-header::before {
+  content: "";
+  position: absolute;
+  top: -40%;
+  right: -10%;
+  width: 160px;
+  height: 160px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18) 0%, transparent 70%);
+  border-radius: 50%;
+}
+
+.cafe-modal-header h2 {
+  color: #fff;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.cafe-modal-header p {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  margin-top: 4px;
+  position: relative;
+  z-index: 1;
+}
+
+.cafe-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, transform 0.2s ease;
+  z-index: 2;
+}
+.cafe-modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+/* ===== Forma tanasi ===== */
+.cafe-modal-body {
+  padding: 22px 24px 24px;
+}
+
+.cafe-field {
+  opacity: 0;
+  animation: fieldSlideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.cafe-field-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #78350f;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  letter-spacing: 0.1px;
+}
+
+.cafe-field-label svg {
+  width: 14px;
+  height: 14px;
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+/* ===== Inputlar ===== */
+.cafe-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #f0e4d4;
+  background: #fffaf3;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #451a03;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease, background 0.2s ease;
+}
+.cafe-input::placeholder {
+  color: #c4a582;
+}
+.cafe-input:focus {
+  outline: none;
+  border-color: #201202;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.12);
+  transform: translateY(-1px);
+}
+.cafe-input:hover:not(:focus) {
+  border-color: #e6c9a0;
+}
+
+input[type="date"].cafe-input {
+  color: #78350f;
+}
+
+.cafe-director-section {
+  margin-top: 6px;
+  padding: 16px;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #451703 0%, #f25512 100%);
+  border: 1.5px dashed #f0c987;
+  position: relative;
+}
+
+.cafe-director-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #52290e;
+  background: #bd9d7d;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.15);
+}
+
+.cafe-director-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ===== Tugmalar ===== */
+.cafe-add-btn {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.35);
+}
+.cafe-add-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(217, 119, 6, 0.4);
+  filter: brightness(1.05);
+}
+.cafe-add-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
+
+.cafe-cancel-btn {
+  transition: background 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
+  background: rgba(red, green, blue, alpha);
+  border-color: #b76b14;
+}
+.cafe-cancel-btn:hover {
+  background: #fdf2e9;
+  border-color: #2a2112;
+}
+.cafe-cancel-btn:active {
+  transform: scale(0.97);
+}
+
+/* ===== Statistika kartalari va ro'yxat kartalari ===== */
+.cafe-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.cafe-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(184, 72, 31, 0.14);
+}
+
+/* ===== Scrollbar (modal ichida) ===== */
+.cafe-modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+.cafe-modal-body::-webkit-scrollbar-thumb {
+  background: #281e0d;
+  border-radius: 999px;
+}
+.cafe-modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
