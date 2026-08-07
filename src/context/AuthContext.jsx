@@ -43,7 +43,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Ro'yxatdan o'tish
+  // Ro'yxatdan o'tish (Agar email ishlatilsa)
   const register = async (email, password) => {
     const userCredential = await createUserWithEmailAndPassword(
       auth,
@@ -53,14 +53,19 @@ export function AuthProvider({ children }) {
     return userCredential.user;
   };
 
-  // XODIM YARATISH
-  const registerStaff = async (email, password, extraData = {}) => {
+  // XODIM YARATISH (Username orqali - avtomatik @kafe.uz qo'shiladi)
+  const registerStaff = async (usernameOrEmail, password, extraData = {}) => {
     if (!secondaryAuth) {
       console.error("secondaryAuth Firebase config faylida topilmadi!");
       throw new Error("Firebase secondaryAuth sozlanmagan.");
     }
 
     try {
+      // Agar kiritilgan qiymatda @ belgisi bo'lmasa, uni username deb bilib @kafe.uz qo'shamiz
+      const email = usernameOrEmail.includes("@") 
+        ? usernameOrEmail 
+        : `${usernameOrEmail.trim().toLowerCase()}@kafe.uz`;
+
       const userCredential = await createUserWithEmailAndPassword(
         secondaryAuth,
         email,
@@ -70,6 +75,7 @@ export function AuthProvider({ children }) {
 
       await setDoc(doc(db, "users", newUser.uid), {
         email,
+        username: usernameOrEmail.includes("@") ? "" : usernameOrEmail.trim(),
         fullName: extraData.fullName || "",
         role: extraData.role || "waiter",
         cafeId: extraData.cafeId || cafeId,
@@ -86,15 +92,21 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Kirish funksiyasi ichida setRole va setCafeId darhol yangilanishini ta'minlaymiz
-  const login = async (email, password) => {
+  // KIRISH (Username yoki Email orqali ishlashi uchun moslashtirildi)
+  const login = async (usernameOrEmail, password) => {
     setLoading(true);
     try {
+      // Agar @ belgisi bo'lmasa, uni avtomatik emailga (username@kafe.uz) aylantiramiz
+      const email = usernameOrEmail.includes("@") 
+        ? usernameOrEmail 
+        : `${usernameOrEmail.trim().toLowerCase()}@kafe.uz`;
+
       const userCredential = await signInWithEmailAndPassword(
         auth,
         email,
         password
       );
+
       const data = await fetchUserData(userCredential.user.uid);
       setLoading(false);
       return data?.role || null;
@@ -114,19 +126,18 @@ export function AuthProvider({ children }) {
     setLoading(false);
   };
 
-  // MUHIM TO'G'RILANISH: Asinxron zanjirni to'g'ri boshqarish
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setLoading(true); // Yuklanishni boshlaymiz
+      setLoading(true);
       if (currentUser) {
         setUser(currentUser);
-        await fetchUserData(currentUser.uid); // Firestore'dan ma'lumot to'liq kelishini kutadi
+        await fetchUserData(currentUser.uid);
       } else {
         setUser(null);
         setRole(null);
         setCafeId(null);
       }
-      setLoading(false); // Faqat barcha ma'lumotlar yuklanib bo'lingach yopiladi
+      setLoading(false);
     });
     return () => unsubscribe();
   }, []);

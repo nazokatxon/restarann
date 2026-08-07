@@ -1,39 +1,48 @@
+// firebase.js
 import { initializeApp } from "firebase/app";
-import { initializeAuth, getAuth, indexedDBLocalPersistence, inMemoryPersistence, browserPopupRedirectResolver } from "firebase/auth";
+import { 
+  initializeAuth, 
+  indexedDBLocalPersistence, 
+  inMemoryPersistence, 
+  browserPopupRedirectResolver 
+} from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getAnalytics } from "firebase/analytics";
+import { getAnalytics, isSupported } from "firebase/analytics";
 
-// Your web app's Firebase configuration
+// 1. Sizning yangi Firebase konfiguratsiyangiz
 const firebaseConfig = {
-  apiKey: "AIzaSyDqFkcef0rQlRRswa698On3DgNd6XdbvBs",
-  authDomain: "kafe-boshqaruv-tizimi.firebaseapp.com",
-  projectId: "kafe-boshqaruv-tizimi",
-  storageBucket: "kafe-boshqaruv-tizimi.firebasestorage.app",
-  messagingSenderId: "1045990593847",
-  appId: "1:1045990593847:web:e823203f618bb5223bb6b2",
-  measurementId: "G-PKJXQZ57JX"
+  apiKey: "AIzaSyCG_2OrLoKRVCo67huOQgW4cHxZ6Kt0pXM",
+  authDomain: "restourant-e6cce.firebaseapp.com",
+  projectId: "restourant-e6cce",
+  storageBucket: "restourant-e6cce.firebasestorage.app",
+  messagingSenderId: "812324770813",
+  appId: "1:812324770813:web:edb6b19dc3c4eba73e3f94",
+  measurementId: "G-5TNRN204JG"
 };
 
-// Asosiy ilovani ishga tushirish
+// 2. Asosiy va ikkilamchi ilovalarni ishga tushirish
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-
-// Admin (Direktor) sessiyasi buzilmasligi uchun ikkinchi ilovani ochamiz
 const secondaryApp = initializeApp(firebaseConfig, "Secondary");
 
-// Eksport qilinadigan obyektlar
-// Asosiy auth - odatdagidek diskda saqlanadi (login qilgach sahifa yangilansa ham sessiya qoladi)
+// 3. Analytics (xavfsiz ishga tushirish)
+let analytics;
+isSupported().then((supported) => {
+  if (supported) {
+    analytics = getAnalytics(app);
+  }
+});
+
+// 4. Asosiy Auth (Doimiy sessiya - IndexedDB)
 export const auth = initializeAuth(app, {
   persistence: indexedDBLocalPersistence,
   popupRedirectResolver: browserPopupRedirectResolver,
 });
 
+// 5. Firestore ma'lumotlar bazasi
 export const db = getFirestore(app);
 
-// MUHIM: secondaryAuth uchun inMemoryPersistence beriladi.
-// Shunda u asosiy auth bilan bir xil storage'ni bo'lishmaydi,
-// va xodim/admin yaratilganda yoki undan signOut qilinganda
-// BigAdmin ning asosiy sessiyasiga hech qanday ta'sir qilmaydi.
+// 6. Secondary Auth (Vaqtinchalik sessiya - InMemory)
+// Admin sessiyasini buzmagan holda xodimlarni boshqarish uchun
 export const secondaryAuth = initializeAuth(secondaryApp, {
   persistence: inMemoryPersistence,
   popupRedirectResolver: browserPopupRedirectResolver,
