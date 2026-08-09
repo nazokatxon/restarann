@@ -12,6 +12,7 @@ import {
   Plus,
   Globe,
   LogOut,
+  BarChart2,
 } from "lucide-react";
 import "./Sidebar.css";
 
@@ -20,7 +21,6 @@ const languages = [
   { code: "ru", label: "RU" },
 ];
 
-// Har bir rol uchun pastki mobil menyuning elementlari
 const NAV_ITEMS_BY_ROLE = {
   waiter: [
     { to: "/waiter/tables", match: "tables", Icon: LayoutDashboard, key: "tables_title", fallback: "Stollar" },
@@ -31,10 +31,10 @@ const NAV_ITEMS_BY_ROLE = {
   ],
   cashier: [
     { to: "/cashier/billing", match: "billing", Icon: CreditCard, key: "billing_title", fallback: "Kassa" },
+    { to: "/cashier/billing?tab=reports", match: "tab=reports", Icon: BarChart2, key: "analytics_title", fallback: "Hisobotlar" },
   ],
 };
 
-// Admin uchun chap tomondagi vertikal sidebar elementlari
 const ADMIN_NAV_ITEMS = [
   { to: "/admin/analytics", match: "analytics", Icon: LayoutDashboard, key: "analytics_title", fallback: "Analitika" },
   { to: "/admin/menu", match: "menu", Icon: ClipboardList, key: "menu_title", fallback: "Menyu" },
@@ -73,18 +73,21 @@ export default function Sidebar() {
     logout();
   };
 
+  const getItemLabel = (key, fallback) => {
+    const translated = t(key);
+    return translated && translated !== key && translated.trim() !== "" ? translated : fallback;
+  };
+
   const LangSwitcher = ({ direction = "up" }) => (
-    <div className="relative" ref={langRef} style={{ width: "100%", height: "100%" }}>
+    <div className="relative flex items-center justify-center w-full" ref={langRef}>
       <button
         onClick={() => setLangOpen(!langOpen)}
-        className={`sb-lang-btn ${langOpen ? "open" : ""}`}
+        className={`flex items-center gap-2 px-3 py-2 rounded-2xl font-bold text-xs text-gray-600 hover:bg-gray-100 transition ${
+          langOpen ? "open" : ""
+        }`}
       >
-        <span className="sb-icon-wrap">
-          <Globe className="sb-icon" />
-        </span>
-        <span className="sb-lang-code">
-          {languages.find((l) => l.code === currentLang)?.label || "UZ"}
-        </span>
+        <Globe size={18} className="text-gray-500" />
+        <span className="uppercase">{languages.find((l) => l.code === currentLang)?.label || "UZ"}</span>
       </button>
 
       {langOpen && (
@@ -124,7 +127,6 @@ export default function Sidebar() {
       </div>
     );
 
-  // ========== ADMIN — CHAP TOMONDAGI VERTIKAL SIDEBAR ==========
   if (role === "admin") {
     return (
       <>
@@ -143,7 +145,7 @@ export default function Sidebar() {
                 <span className="sb-icon-wrap">
                   <Icon className="sb-icon" />
                 </span>
-                <span className="sb-nav-label">{t(key) || fallback}</span>
+                <span className="sb-nav-label">{getItemLabel(key, fallback)}</span>
               </Link>
             ))}
           </div>
@@ -156,7 +158,7 @@ export default function Sidebar() {
             <span className="sb-icon-wrap">
               <LogOut className="sb-icon" />
             </span>
-            <span className="sb-nav-label">{t("close_window") || "Chiqish"}</span>
+            <span className="sb-nav-label">{getItemLabel("close_window", "Chiqish")}</span>
           </button>
         </div>
 
@@ -165,35 +167,52 @@ export default function Sidebar() {
     );
   }
 
-  // ========== OFITSIANT / OSHPAZ / KASSIR — PASTKI GORIZONTAL MENYU ==========
   const navItems = NAV_ITEMS_BY_ROLE[role] || [];
 
   return (
     <>
-      <div className="sb-sidebar-mobile">
-        {navItems.map(({ to, match, Icon, key, fallback }) => (
-          <Link
-            key={to}
-            to={to}
-            className={`sb-nav-item-mobile ${location.pathname.includes(match) ? "active" : ""}`}
-          >
-            <span className="sb-icon-wrap">
-              <Icon className="sb-icon" />
-            </span>
-            <span className="sb-nav-label-mobile">{t(key) || fallback}</span>
-          </Link>
-        ))}
+      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-white/95 backdrop-blur-md px-5 py-2 rounded-[28px] shadow-2xl border border-gray-100 flex items-center justify-between gap-4 min-w-[420px] max-w-[95vw]">
+        
+        {/* Navigatsiya tugmalari (Kassa va Hisobotlar yonma-yon) */}
+        <div className="flex items-center gap-2 flex-1">
+          {navItems.map(({ to, match, Icon, key, fallback }) => {
+            const isActive = match.includes("tab=reports") 
+              ? location.search.includes("tab=reports") 
+              : !location.search.includes("tab=reports") && location.pathname.includes(match);
 
-        <div style={{ width: 76, height: "100%" }}>
-          <LangSwitcher direction="up" />
+            return (
+              <Link
+                key={to}
+                to={to}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all duration-200 ${
+                  isActive
+                    ? "bg-[#964B00] text-white shadow-md scale-[1.02]"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <Icon size={18} />
+                <span>{getItemLabel(key, fallback)}</span>
+              </Link>
+            );
+          })}
         </div>
 
-        <button onClick={() => setShowLogoutModal(true)} className="sb-nav-item-mobile" style={{ background: "none", border: "none", cursor: "pointer" }}>
-          <span className="sb-icon-wrap">
-            <LogOut className="sb-icon" />
-          </span>
-          <span className="sb-nav-label-mobile">{t("close_window") || "Oynani yopish"}</span>
-        </button>
+        <div className="h-6 w-[1px] bg-gray-200"></div>
+
+        {/* Til va Chiqish tugmalari */}
+        <div className="flex items-center gap-1">
+          <LangSwitcher direction="up" />
+
+          <button
+            onClick={() => setShowLogoutModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-gray-500 hover:text-red-600 hover:bg-red-50 font-bold text-xs transition"
+            title="Chiqish"
+          >
+            <LogOut size={18} />
+            <span>Chiqish</span>
+          </button>
+        </div>
+
       </div>
 
       <LogoutModal />
