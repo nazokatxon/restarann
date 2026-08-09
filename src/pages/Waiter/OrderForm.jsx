@@ -14,8 +14,10 @@ import { toast } from "react-toastify";
 import "./OrderForm.css";
 
 export default function OrderForm() {
-  const { cafeId } = useAuth();
+  const { cafeId, user } = useAuth();
+
   const [searchParams] = useSearchParams();
+
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState([]);
@@ -32,7 +34,9 @@ export default function OrderForm() {
   const playCleanSmsSound = async () => {
     try {
       if (!audioCtxRef.current) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const AudioContext =
+          window.AudioContext || window.webkitAudioContext;
+
         if (AudioContext) {
           audioCtxRef.current = new AudioContext();
         }
@@ -47,24 +51,30 @@ export default function OrderForm() {
 
       const now = ctx.currentTime;
 
-      // 1-tovush (Qisqa boshlang'ich signal)
+      // 1-tovush
       const osc1 = ctx.createOscillator();
       const gain1 = ctx.createGain();
+
       osc1.type = "sine";
       osc1.frequency.setValueAtTime(650, now);
+
       gain1.gain.setValueAtTime(0.12, now);
       gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
       osc1.connect(gain1);
       gain1.connect(ctx.destination);
 
-      // 2-tovush (SMS effekti beruvchi ikkinchi signal)
+      // 2-tovush
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
+
       osc2.type = "sine";
       osc2.frequency.setValueAtTime(950, now + 0.06);
+
       gain2.gain.setValueAtTime(0, now);
       gain2.gain.setValueAtTime(0.12, now + 0.06);
       gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
       osc2.connect(gain2);
       gain2.connect(ctx.destination);
 
@@ -82,17 +92,25 @@ export default function OrderForm() {
   useEffect(() => {
     const initAudio = () => {
       if (!audioCtxRef.current) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const AudioContext =
+          window.AudioContext || window.webkitAudioContext;
+
         if (AudioContext) {
           audioCtxRef.current = new AudioContext();
         }
       }
-      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
+
+      if (
+        audioCtxRef.current &&
+        audioCtxRef.current.state === "suspended"
+      ) {
         audioCtxRef.current.resume();
       }
     };
+
     window.addEventListener("click", initAudio);
     window.addEventListener("touchstart", initAudio);
+
     return () => {
       window.removeEventListener("click", initAudio);
       window.removeEventListener("touchstart", initAudio);
@@ -102,71 +120,80 @@ export default function OrderForm() {
   // Stol grid'idan "?table=5" kabi manzil bilan kelinsa stolni to'ldirish
   useEffect(() => {
     const tableFromUrl = searchParams.get("table");
+
     if (tableFromUrl) {
       setTableNumber(tableFromUrl);
     }
   }, [searchParams]);
 
-  // 1. Menyu taomlarini real-time yuklash
+  // =========================================================
+  // MENYU TAOMLARINI REAL-TIME YUKLASH
+  // =========================================================
   useEffect(() => {
-    if (!cafeId) return;
+    const effectiveCafeId = cafeId || user?.cafeId;
+
+    if (!effectiveCafeId) {
+      console.log("❌ cafeId topilmadi:", {
+        cafeId,
+        userCafeId: user?.cafeId,
+        user,
+      });
+
+      setMenu([]);
+      setLoading(false);
+      return;
+    }
+
+    console.log("✅ Ofitsiant cafeId:", effectiveCafeId);
 
     const q = query(
       collection(db, "menu"),
-      where("cafeId", "==", cafeId),
-      where("available", "==", true)
+      where("cafeId", "==", effectiveCafeId)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
-      setMenu(data);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs
+          .map((d) => ({
+            id: d.id,
+            ...d.data(),
+          }))
+          .filter((dish) => dish.available !== false);
 
-    return () => unsubscribe();
-  }, [cafeId]);
+        console.log("🍽️ Topilgan taomlar:", data);
 
-  // 2. Real-time xabarnomalar: Oshpaz 'ready' qilganda ishlovchi qism
-  useEffect(() => {
-    if (!cafeId) return;
-
-    const q = query(
-      collection(db, "orders"),
-      where("cafeId", "==", cafeId),
-      where("kitchenStatus", "==", "ready")
+        setMenu(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("❌ Menyuni yuklashda xatolik:", error);
+        setMenu([]);
+        setLoading(false);
+      }
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === "modified" || change.type === "added") {
-          const orderData = change.doc.data();
-
-          // Toast xabarnomasi
-          toast.success(`🛎️ ${orderData.tableNumber}-stol buyurtmasi tayyor! Oshpazdan olib ketishingiz mumkin.`, {
-            style: { backgroundColor: '#8B4513', color: '#FFF' },
-            icon: "🍲"
-          });
-
-          // Eski buzilgan audio o'rniga yangi xavfsiz funksiya chaqiriladi
-          playCleanSmsSound();
-        }
-      });
-    });
-
     return () => unsubscribe();
-  }, [cafeId]);
+  }, [cafeId, user?.cafeId]);
 
-  const categories = ["all", "taom", "desert", "ichimlik", "salat", "boshqa"];
+  const categories = [
+    "all",
+    "taom",
+    "desert",
+    "ichimlik",
+    "salat",
+    "boshqa",
+  ];
 
   const filteredMenu =
-    category === "all" ? menu : menu.filter((d) => d.category === category);
+    category === "all"
+      ? menu
+      : menu.filter((d) => d.category === category);
 
   const addToCart = (dish) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.id === dish.id);
+
       if (existing) {
         return prev.map((item) =>
           item.id === dish.id
@@ -174,6 +201,7 @@ export default function OrderForm() {
             : item
         );
       }
+
       return [...prev, { ...dish, quantity: 1 }];
     });
   };
@@ -181,6 +209,7 @@ export default function OrderForm() {
   const decreaseQuantity = (dishId) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.id === dishId);
+
       if (existing && existing.quantity > 1) {
         return prev.map((item) =>
           item.id === dishId
@@ -188,12 +217,14 @@ export default function OrderForm() {
             : item
         );
       }
+
       return prev.filter((item) => item.id !== dishId);
     });
   };
 
   const getQuantityInCart = (dishId) => {
     const item = cart.find((i) => i.id === dishId);
+
     return item ? item.quantity : 0;
   };
 
@@ -202,28 +233,47 @@ export default function OrderForm() {
     0
   );
 
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const totalItems = cart.reduce(
+    (sum, item) => sum + item.quantity,
+    0
+  );
 
   const handleSubmitOrder = async () => {
     if (!tableNumber) {
       alert("Iltimos, stol raqamini kiriting");
       return;
     }
+
     if (cart.length === 0) {
       alert("Iltimos, kamida bitta taom tanlang");
       return;
     }
 
+    const effectiveCafeId = cafeId || user?.cafeId;
+
+    if (!effectiveCafeId) {
+      alert("Kafe ma'lumotlari topilmadi. Iltimos, qayta kiring.");
+      console.error("❌ Buyurtma uchun cafeId topilmadi:", {
+        cafeId,
+        userCafeId: user?.cafeId,
+        user,
+      });
+      return;
+    }
+
     setSubmitting(true);
+
     try {
       await addDoc(collection(db, "orders"), {
-        cafeId,
+        cafeId: effectiveCafeId,
         tableNumber,
+
         items: cart.map((item) => ({
           name: item.name,
           price: item.price,
           quantity: item.quantity,
         })),
+
         totalPrice,
         note,
         kitchenStatus: "pending",
@@ -235,26 +285,37 @@ export default function OrderForm() {
       setTableNumber("");
       setNote("");
       setShowCart(false);
+
       toast.info("🚀 Buyurtma oshxonaga yuborildi!");
+
+      // Audio tayyor bo'lsa ishlaydi
+      playCleanSmsSound();
     } catch (error) {
-      console.error("Buyurtmani yuborishda xatolik:", error);
-      alert("Xatolik yuz berdi, qaytadan urinib ko'ring");
+      console.error(
+        "Buyurtmani yuborishda xatolik:",
+        error
+      );
+
+      alert(
+        `Xatolik yuz berdi:\n${
+          error?.message || "Qaytadan urinib ko'ring"
+        }`
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500 text-lg">Yuklanmoqda...</p>
-      </div>
-    );
+    return <div>Yuklanmoqda...</div>;
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto overflow-x-hidden" style={{ paddingBottom: "220px" }}>
-      <h1 className="text-2xl font-bold text-amber-800 mb-4">
+    <div
+      className="p-4 sm:p-6 max-w-4xl mx-auto overflow-x-hidden"
+      style={{ paddingBottom: "220px" }}
+    >
+      <h1 className="text-2xl font-bold text-center mb-5">
         Yangi buyurtma
       </h1>
 
@@ -263,6 +324,7 @@ export default function OrderForm() {
         <label className="text-sm font-medium text-gray-700">
           Stol raqami
         </label>
+
         <input
           type="text"
           value={tableNumber}
@@ -291,12 +353,18 @@ export default function OrderForm() {
 
       {/* Menyu ro'yxati */}
       {filteredMenu.length === 0 ? (
-        <p className="text-gray-400 text-sm">Taomlar topilmadi</p>
+        <p className="text-gray-400 text-sm">
+          Taomlar topilmadi
+        </p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {filteredMenu.map((dish, index) => {
             const qty = getQuantityInCart(dish.id);
-            const animationClass = index % 2 === 0 ? "animate-fade-left" : "animate-fade-right";
+
+            const animationClass =
+              index % 2 === 0
+                ? "animate-fade-left"
+                : "animate-fade-right";
 
             return (
               <div
@@ -315,11 +383,13 @@ export default function OrderForm() {
                   alt={dish.name}
                   className="w-20 h-20 object-cover"
                 />
+
                 <div className="flex-1 p-3 flex flex-col justify-between">
                   <div>
                     <h3 className="font-semibold text-gray-800 text-sm">
                       {dish.name}
                     </h3>
+
                     <p className="text-amber-700 font-bold text-sm mt-1">
                       {Number(dish.price).toLocaleString()} so'm
                     </p>
@@ -335,14 +405,18 @@ export default function OrderForm() {
                   ) : (
                     <div className="flex items-center gap-2 mt-2">
                       <button
-                        onClick={() => decreaseQuantity(dish.id)}
+                        onClick={() =>
+                          decreaseQuantity(dish.id)
+                        }
                         className="w-7 h-7 rounded-md bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition"
                       >
                         −
                       </button>
+
                       <span className="text-sm font-medium w-5 text-center">
                         {qty}
                       </span>
+
                       <button
                         onClick={() => addToCart(dish)}
                         className="w-7 h-7 rounded-md bg-amber-600 text-white font-bold hover:bg-amber-700 transition"
@@ -369,9 +443,13 @@ export default function OrderForm() {
               <span className="bg-white/20 rounded-full w-6 h-6 flex items-center justify-center text-xs">
                 {totalItems}
               </span>
+
               ta mahsulot
             </span>
-            <span className="text-base">{totalPrice.toLocaleString()} so'm</span>
+
+            <span className="text-base">
+              {totalPrice.toLocaleString()} so'm
+            </span>
           </button>
         </div>
       )}
@@ -391,19 +469,30 @@ export default function OrderForm() {
                   className="flex justify-between items-center text-sm"
                 >
                   <div>
-                    <p className="font-medium text-gray-800">{item.name}</p>
+                    <p className="font-medium text-gray-800">
+                      {item.name}
+                    </p>
+
                     <p className="text-gray-500">
-                      {item.price.toLocaleString()} so'm x {item.quantity}
+                      {Number(item.price).toLocaleString()} so'm x{" "}
+                      {item.quantity}
                     </p>
                   </div>
+
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => decreaseQuantity(item.id)}
+                      onClick={() =>
+                        decreaseQuantity(item.id)
+                      }
                       className="w-6 h-6 rounded-md bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition"
                     >
                       −
                     </button>
-                    <span className="w-5 text-center">{item.quantity}</span>
+
+                    <span className="w-5 text-center">
+                      {item.quantity}
+                    </span>
+
                     <button
                       onClick={() => addToCart(item)}
                       className="w-6 h-6 rounded-md bg-amber-600 text-white font-bold hover:bg-amber-700 transition"
@@ -419,6 +508,7 @@ export default function OrderForm() {
               <label className="text-sm font-medium text-gray-700">
                 Izoh (ixtiyoriy)
               </label>
+
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -429,7 +519,10 @@ export default function OrderForm() {
             </div>
 
             <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-100">
-              <span className="font-semibold text-gray-800">Jami:</span>
+              <span className="font-semibold text-gray-800">
+                Jami:
+              </span>
+
               <span className="font-bold text-amber-700 text-lg">
                 {totalPrice.toLocaleString()} so'm
               </span>
@@ -441,8 +534,11 @@ export default function OrderForm() {
                 disabled={submitting}
                 className="flex-1 bg-amber-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition disabled:opacity-50"
               >
-                {submitting ? "Yuborilmoqda..." : "Buyurtma yuborish"}
+                {submitting
+                  ? "Yuborilmoqda..."
+                  : "Buyurtma yuborish"}
               </button>
+
               <button
                 onClick={() => setShowCart(false)}
                 className="flex-1 border border-gray-300 py-2 rounded-lg text-sm font-medium hover:bg-gray-100 transition"

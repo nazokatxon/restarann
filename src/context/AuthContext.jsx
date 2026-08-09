@@ -115,6 +115,11 @@ export function AuthProvider({ children }) {
       throw error;
     }
   };
+  const setAuthData = ({ user, role, cafeId }) => {
+  setUser(user || null);
+  setRole(role || null);
+  setCafeId(cafeId || null);
+};
 
   // Chiqish
   const logout = async () => {
@@ -143,15 +148,16 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = {
-    user,
-    role,
-    cafeId,
-    loading,
-    login,
-    register,
-    registerStaff,
-    logout,
-  };
+  user,
+  role,
+  cafeId,
+  loading,
+  login,
+  register,
+  registerStaff,
+  logout,
+  setAuthData,
+};
 
   return (
     <AuthContext.Provider value={value}>

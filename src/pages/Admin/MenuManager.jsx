@@ -218,43 +218,60 @@ export default function MenuManager() {
       return;
     }
 
-    const dishData = {
-      cafeId,
-      name: form.name,
-      category: form.category,
-      price: Number(form.price),
-      description: form.description,
-      // Agar foydalanuvchi hech qanday rasm tanlamagan bo'lsa, taom nomiga
-      // mos (yoki kategoriya bo'yicha) rasmni avtomatik tayinlaymiz —
-      // shunda barcha taomlar bir xil tashqi rasmga qotib qolmaydi.
-      imageUrl: form.imageUrl || suggestImageForDish(form.name, form.category),
-      available: form.available,
-    };
+   const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    try {
-      if (editingDish) {
-        await updateDoc(doc(db, "menu", editingDish.id), dishData);
-      } else {
-        await addDoc(collection(db, "menu"), {
-          ...dishData,
-          createdAt: new Date(),
-        });
-      }
-      setModalOpen(false);
-      resetForm();
-    } catch (error) {
-      console.error("Taomni saqlashda xatolik:", error);
-      alert("Xatolik yuz berdi, qaytadan urinib ko'ring");
-    }
+  if (!cafeId) {
+    alert("Kafe ID topilmadi. Iltimos, tizimdan chiqib qayta kiring.");
+    console.error("cafeId mavjud emas:", cafeId);
+    return;
+  }
+
+  if (!form.name.trim() || !form.price) {
+    alert("Iltimos, taom nomi va narxini kiriting");
+    return;
+  }
+
+  const dishData = {
+    cafeId,
+    name: form.name.trim(),
+    category: form.category,
+    price: Number(form.price),
+    description: form.description,
+    imageUrl:
+      form.imageUrl ||
+      suggestImageForDish(form.name, form.category),
+    available: form.available,
   };
 
-  const handleDelete = async (dishId) => {
-    if (!window.confirm("Bu taomni o'chirishga ishonchingiz komilmi?")) return;
-    try {
-      await deleteDoc(doc(db, "menu", dishId));
-    } catch (error) {
-      console.error("Taomni o'chirishda xatolik:", error);
+  try {
+    if (editingDish) {
+      await updateDoc(
+        doc(db, "menu", editingDish.id),
+        dishData
+      );
+    } else {
+      await addDoc(collection(db, "menu"), {
+        ...dishData,
+        createdAt: new Date(),
+      });
     }
+
+    setModalOpen(false);
+    resetForm();
+
+  } catch (error) {
+    console.error("Taomni saqlashda xatolik:", error);
+    console.error("Firebase error code:", error?.code);
+    console.error("Firebase error message:", error?.message);
+
+    alert(
+      `Taomni saqlab bo'lmadi.\n\n${
+        error?.message || "Noma'lum xatolik"
+      }`
+    );
+  }
+};
   };
 
   const toggleAvailability = async (dish) => {
