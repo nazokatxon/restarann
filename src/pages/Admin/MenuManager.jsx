@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   collection,
   query,
@@ -9,156 +10,60 @@ import {
   deleteDoc,
   doc,
 } from "firebase/firestore";
-import { db } from "../../firebase/config";
+import { db } from "../../firebase/config.js";
 import { useAuth } from "../../context/AuthContext";
-import {
-  Image as LucideImage,
-  Plus,
-  Trash2,
-  Edit,
-  ClipboardList,
-  PlusCircle,
-  FileText,
-  CheckCircle,
-  XCircle,
-  RefreshCw,
-  X,
-  ImageOff,
-  Sparkles,
-} from "lucide-react";
 
-// Taom nomida uchraydigan kalit so'zlarga qarab mos rasm tanlash uchun bank.
-// Har bir kalit so'z ostida bir nechta sifatli Unsplash rasmi bor — shunda
-// bir xil nomdagi taomlar ham har doim bitta rasmga qotib qolmaydi.
-const DISH_IMAGE_BANK = {
-  osh: [
-    "https://images.unsplash.com/photo-1596560548464-f010549b84d7?w=400&auto=format&fit=crop&q=60",
-    "https://images.unsplash.com/photo-1596560548464-f010549b84d7?w=400&auto=format&fit=crop&q=70",
-  ],
-  palov: [
-    "https://images.unsplash.com/photo-1596560548464-f010549b84d7?w=400&auto=format&fit=crop&q=60",
-  ],
-  somsa: [
-    "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&auto=format&fit=crop&q=60",
-  ],
-  samsa: [
-    "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&auto=format&fit=crop&q=60",
-  ],
-  shashlik: [
-    "https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?w=400&auto=format&fit=crop&q=60",
-  ],
-  kabob: [
-    "https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?w=400&auto=format&fit=crop&q=60",
-  ],
-  manti: [
-    "https://images.unsplash.com/photo-1625398407796-82650a8c135f?w=400&auto=format&fit=crop&q=60",
-  ],
-  lag_mon: [
-    "https://images.unsplash.com/photo-1585032226651-759b368d7246?w=400&auto=format&fit=crop&q=60",
-  ],
-  lagmon: [
-    "https://images.unsplash.com/photo-1585032226651-759b368d7246?w=400&auto=format&fit=crop&q=60",
-  ],
-  norin: [
-    "https://images.unsplash.com/photo-1585032226651-759b368d7246?w=400&auto=format&fit=crop&q=60",
-  ],
-  salat: [
-    "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&auto=format&fit=crop&q=60",
-  ],
-  non: [
-    "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&auto=format&fit=crop&q=60",
-  ],
-  choy: [
-    "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=400&auto=format&fit=crop&q=60",
-  ],
-  choy_kok: [
-    "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=400&auto=format&fit=crop&q=60",
-  ],
-  sharbat: [
-    "https://images.unsplash.com/photo-1622597467836-f3285f2131b8?w=400&auto=format&fit=crop&q=60",
-  ],
-  tort: [
-    "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=400&auto=format&fit=crop&q=60",
-  ],
-  desert: [
-    "https://images.unsplash.com/photo-1551024506-0bccd828d307?w=400&auto=format&fit=crop&q=60",
-  ],
-};
+export default function AdminMenu() {
+  const { cafeId, currentUser, logout } = useAuth();
+  const navigate = useNavigate();
 
-// Kategoriya bo'yicha umumiy zaxira rasmlar (nomga mos kalit so'z topilmasa ishlatiladi)
-const CATEGORY_FALLBACK_IMAGES = {
-  taom: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&auto=format&fit=crop&q=60",
-  desert: "https://images.unsplash.com/photo-1551024506-0bccd828d307?w=400&auto=format&fit=crop&q=60",
-  ichimlik: "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=400&auto=format&fit=crop&q=60",
-  salat: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&auto=format&fit=crop&q=60",
-  boshqa: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&auto=format&fit=crop&q=60",
-};
-
-// Taom nomiga qarab eng mos rasmni tanlaydi.
-// 1) Avval nomdagi so'zlar DISH_IMAGE_BANK kalitlariga solishtiriladi
-// 2) Topilmasa, kategoriya bo'yicha umumiy zaxira rasm qaytariladi
-function suggestImageForDish(name, category) {
-  const normalized = (name || "")
-    .toLowerCase()
-    .replace(/[^a-zа-яʻʼ\s]/gi, " ")
-    .trim();
-
-  for (const keyword of Object.keys(DISH_IMAGE_BANK)) {
-    const searchKey = keyword.replace(/_/g, " ");
-    if (normalized.includes(searchKey) || normalized.includes(keyword)) {
-      const options = DISH_IMAGE_BANK[keyword];
-      return options[Math.floor(Math.random() * options.length)];
-    }
-  }
-
-  return CATEGORY_FALLBACK_IMAGES[category] || CATEGORY_FALLBACK_IMAGES.taom;
-}
-
-export default function MenuManager() {
-  const { cafeId } = useAuth();
-  const [dishes, setDishes] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingDish, setEditingDish] = useState(null);
-  const [fileError, setFileError] = useState("");
+  const [editingItem, setEditingItem] = useState(null);
+
+  // Chiqish va O'chirish uchun maxsus modal holatlari
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState(null);
 
   const [form, setForm] = useState({
     name: "",
-    category: "taom",
     price: "",
-    description: "",
+    category: "Taom",
     imageUrl: "",
-    available: true,
   });
+
+  // TIZIMDAN CHIQISH FUNKSIYASI
+  const confirmLogout = async () => {
+    try {
+      if (logout) await logout();
+      navigate("/login");
+    } catch (error) {
+      console.error("Chiqishda xatolik:", error);
+    } finally {
+      setLogoutModalOpen(false);
+    }
+  };
 
   useEffect(() => {
     if (!cafeId) return;
 
     const q = query(collection(db, "menu"), where("cafeId", "==", cafeId));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((d) => ({
+    const unsub = onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map((d) => ({
         id: d.id,
         ...d.data(),
       }));
-      setDishes(data);
+      setMenuItems(items);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => unsub();
   }, [cafeId]);
 
   const resetForm = () => {
-    setForm({
-      name: "",
-      category: "taom",
-      price: "",
-      description: "",
-      imageUrl: "",
-      available: true,
-    });
-    setFileError("");
-    setEditingDish(null);
+    setForm({ name: "", price: "", category: "Taom", imageUrl: "" });
+    setEditingItem(null);
   };
 
   const openAddModal = () => {
@@ -166,431 +71,239 @@ export default function MenuManager() {
     setModalOpen(true);
   };
 
-  const openEditModal = (dish) => {
+  const openEditModal = (item) => {
+    setEditingItem(item);
     setForm({
-      name: dish.name || "",
-      category: dish.category || "taom",
-      price: dish.price || "",
-      description: dish.description || "",
-      imageUrl: dish.imageUrl || "",
-      available: dish.available ?? true,
+      name: item.name || "",
+      price: item.price || "",
+      category: item.category || "Taom",
+      imageUrl: item.imageUrl || "",
     });
-    setFileError("");
-    setEditingDish(dish);
     setModalOpen(true);
-  };
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (file.size > 1024 * 1024) {
-      setFileError("Rasm hajmi juda katta! Iltimos, 1 MB dan kichik rasm yuklang.");
-      // Inputni tozalaymiz — aks holda eski (noto'g'ri) tanlov ko'rinmasdan qolib ketadi
-      e.target.value = "";
-      return;
-    }
-
-    setFileError("");
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setForm((prev) => ({
-        ...prev,
-        imageUrl: reader.result,
-      }));
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!form.name || !form.price) {
-      alert("Iltimos, taom nomi va narxini kiriting");
+      alert("Iltimos, nom va narxni kiriting!");
       return;
     }
 
-   const handleSubmit = async (e) => {
-  e.preventDefault();
-
-  if (!cafeId) {
-    alert("Kafe ID topilmadi. Iltimos, tizimdan chiqib qayta kiring.");
-    console.error("cafeId mavjud emas:", cafeId);
-    return;
-  }
-
-  if (!form.name.trim() || !form.price) {
-    alert("Iltimos, taom nomi va narxini kiriting");
-    return;
-  }
-
-  const dishData = {
-    cafeId,
-    name: form.name.trim(),
-    category: form.category,
-    price: Number(form.price),
-    description: form.description,
-    imageUrl:
-      form.imageUrl ||
-      suggestImageForDish(form.name, form.category),
-    available: form.available,
-  };
-
-  try {
-    if (editingDish) {
-      await updateDoc(
-        doc(db, "menu", editingDish.id),
-        dishData
-      );
-    } else {
-      await addDoc(collection(db, "menu"), {
-        ...dishData,
-        createdAt: new Date(),
-      });
-    }
-
-    setModalOpen(false);
-    resetForm();
-
-  } catch (error) {
-    console.error("Taomni saqlashda xatolik:", error);
-    console.error("Firebase error code:", error?.code);
-    console.error("Firebase error message:", error?.message);
-
-    alert(
-      `Taomni saqlab bo'lmadi.\n\n${
-        error?.message || "Noma'lum xatolik"
-      }`
-    );
-  }
-};
-  };
-
-  const toggleAvailability = async (dish) => {
     try {
-      await updateDoc(doc(db, "menu", dish.id), {
-        available: !dish.available,
-      });
+      if (editingItem) {
+        await updateDoc(doc(db, "menu", editingItem.id), {
+          name: form.name,
+          price: Number(form.price),
+          category: form.category || "Taom",
+          imageUrl: form.imageUrl || "",
+        });
+      } else {
+        await addDoc(collection(db, "menu"), {
+          cafeId,
+          name: form.name,
+          price: Number(form.price),
+          category: form.category || "Taom",
+          imageUrl: form.imageUrl || "",
+          available: true,
+          createdAt: new Date(),
+        });
+      }
+
+      setModalOpen(false);
+      resetForm();
     } catch (error) {
-      console.error("Holatni yangilashda xatolik:", error);
+      console.error("Saqlashda xatolik:", error);
     }
   };
 
-  const categories = ["taom", "desert", "ichimlik", "salat", "boshqa"];
-
-  // Barcha modal inputlar uchun umumiy klass — och fon, to'q matn,
-  // yorqin fokus halqasi va yengil soyasi bilan
-  const inputClass =
-    "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white text-gray-900 placeholder:text-gray-400 shadow-sm transition-all duration-150 focus:outline-none focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/15";
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64 gap-2">
-        <RefreshCw className="text-gray-400 w-5 h-5 animate-spin" />
-        <p className="text-gray-500 text-sm font-medium">Loyha menyusi yuklanmoqda...</p>
-      </div>
-    );
-  }
+  const confirmDeleteMeal = async () => {
+    if (!deleteConfirmItem) return;
+    try {
+      await deleteDoc(doc(db, "menu", deleteConfirmItem.id));
+    } catch (error) {
+      console.error("O'chirishda xatolik:", error);
+    } finally {
+      setDeleteConfirmItem(null);
+    }
+  };
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto bg-[#FDFBF7] min-h-screen pb-24">
-      {/* Sarlavha paneli */}
-      <div className="flex items-center justify-between mb-6 border-b-2 border-[#D4AF37] pb-3">
-        <div className="flex items-center gap-2">
-          <ClipboardList className="text-[#8B4513] w-6 h-6" />
-          <h1 className="text-xl font-bold text-[#8B4513]">Menyu boshqaruvi</h1>
+    <div className="min-h-screen bg-slate-50 text-slate-800 w-full flex flex-col font-sans">
+      {/* HEADER / NAVBAR */}
+      <header className="bg-white border-b border-slate-200 px-4 py-3 sm:px-8 flex justify-between items-center shadow-sm">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">👑</span>
+          <span className="font-bold text-lg text-slate-900">Control Hub</span>
+          <span className="bg-amber-100 text-amber-700 text-[11px] font-bold px-2 py-0.5 rounded uppercase">
+            Admin
+          </span>
         </div>
-        <button
-          onClick={openAddModal}
-          className="bg-[#B22222] text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-[#8B0000] active:scale-95 transition-all shadow-md shadow-red-900/20 flex items-center gap-1.5"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Yangi Taom</span>
-        </button>
-      </div>
 
-      {/* Taomlar ro'yxati */}
-      {dishes.length === 0 ? (
-        <div className="text-center p-8 bg-white rounded-xl border border-dashed flex flex-col items-center justify-center gap-2">
-          <FileText className="text-gray-300 w-8 h-8" />
-          <p className="text-gray-400 text-sm">Hozircha menyuda taomlar mavjud emas.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {dishes.map((dish) => (
-            <div
-              key={dish.id}
-              className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex transition-all hover:shadow-md"
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-medium text-slate-500 hidden sm:inline">
+            {currentUser?.email || "Admin"}
+          </span>
+
+          <button
+            onClick={() => setLogoutModalOpen(true)}
+            className="flex items-center gap-1.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              {/* Har bir taomga o'zining rasmi, yo'q bo'lsa neytral
-                  "rasm yo'q" belgisi — bir xil tashqi rasm ishlatilmaydi */}
-              {dish.imageUrl ? (
-                <img
-                  src={dish.imageUrl}
-                  alt={dish.name}
-                  className="w-24 h-full object-cover bg-gray-50 min-h-[100px]"
-                />
-              ) : (
-                <div className="w-24 min-h-[100px] bg-gray-50 flex flex-col items-center justify-center gap-1 shrink-0">
-                  <ImageOff className="w-5 h-5 text-gray-300" />
-                  <span className="text-[9px] text-gray-300 font-medium">Rasm yo'q</span>
-                </div>
-              )}
-              <div className="flex-1 p-3 flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start gap-1">
-                    <h3 className="font-bold text-gray-800 text-sm line-clamp-1">{dish.name}</h3>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
-                        dish.available
-                          ? "bg-green-50 text-green-700 border border-green-200"
-                          : "bg-red-50 text-red-700 border border-red-200"
-                      }`}
-                    >
-                      {dish.available ? (
-                        <>
-                          <CheckCircle className="w-3 h-3" />
-                          <span>Mavjud</span>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="w-3 h-3" />
-                          <span>Tugagan</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-gray-400 capitalize mt-0.5">{dish.category}</p>
-                  <p className="text-[#B22222] font-extrabold text-sm mt-1">
-                    {Number(dish.price).toLocaleString()} so'm
-                  </p>
-                </div>
-
-                <div className="flex gap-1.5 mt-3 pt-2 border-t border-gray-50">
-                  <button
-                    onClick={() => openEditModal(dish)}
-                    className="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 font-medium text-gray-600 transition flex items-center gap-1"
-                  >
-                    <Edit className="w-3 h-3" />
-                    <span>Tahrirlash</span>
-                  </button>
-                  <button
-                    onClick={() => toggleAvailability(dish)}
-                    className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition ${
-                      dish.available
-                        ? "border-amber-200 text-amber-700 hover:bg-amber-50"
-                        : "border-blue-200 text-blue-700 hover:bg-blue-50"
-                    }`}
-                  >
-                    {dish.available ? "Tugatish" : "Tiklash"}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(dish.id)}
-                    className="text-[11px] px-2.5 py-1 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 font-medium transition ml-auto flex items-center gap-1"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>O'chirish</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Chiqish
+          </button>
         </div>
-      )}
+      </header>
 
-      {/* Modal oyna — soyali, yorqin uslub */}
-      {modalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white rounded-2xl shadow-2xl shadow-black/30 w-full max-w-md p-5 max-h-[90vh] overflow-y-auto border border-gray-100 animate-[slideDown_0.25s_ease-out]">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
-              <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
-                {editingDish ? (
-                  <>
-                    <Edit className="text-[#8B4513] w-4 h-4" />
-                    Taomni tahrirlash
-                  </>
-                ) : (
-                  <>
-                    <PlusCircle className="text-[#8B4513] w-4 h-4" />
-                    Yangi taom qo'shish
-                  </>
-                )}
-              </h2>
-              <button
-                type="button"
-                onClick={() => {
-                  setModalOpen(false);
-                  resetForm();
-                }}
-                className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1 transition"
+      {/* ASOSIY KONTENT */}
+      <main className="max-w-5xl w-full mx-auto p-4 sm:p-6 flex-1">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+            📋 Menyu boshqaruvi
+          </h1>
+          <button
+            onClick={openAddModal}
+            className="bg-amber-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-amber-700 transition shadow-sm cursor-pointer"
+          >
+            + Yangi Taom
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-12 text-slate-400">Yuklanmoqda...</div>
+        ) : menuItems.length === 0 ? (
+          <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200">
+            Hali taomlar qo'shilmagan
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {menuItems.map((item) => (
+              <div
+                key={item.id}
+                className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between"
               >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-3.5">
-              <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1">Taom nomi</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={form.name}
-                  onChange={handleChange}
-                  className={inputClass}
-                  placeholder="Masalan: Somsa, Shashlik"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-bold text-gray-600 block mb-1">Kategoriya</label>
-                  <select
-                    name="category"
-                    value={form.category}
-                    onChange={handleChange}
-                    className={`${inputClass} capitalize`}
-                  >
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      className="w-full h-36 object-cover rounded-xl mb-3"
+                    />
+                  ) : (
+                    <div className="w-full h-36 bg-slate-100 rounded-xl mb-3 flex items-center justify-center text-3xl">
+                      🍲
+                    </div>
+                  )}
+                  <h3 className="font-bold text-slate-800 text-base">
+                    {item.name}
+                  </h3>
+                  <span className="text-xs text-slate-400 font-medium block mt-0.5">
+                    {item.category || "Taom"}
+                  </span>
+                  <p className="text-amber-600 font-extrabold text-lg mt-2">
+                    {Number(item.price).toLocaleString()} so'm
+                  </p>
                 </div>
 
-                <div>
-                  <label className="text-xs font-bold text-gray-600 block mb-1">Narxi (so'm)</label>
-                  <input
-                    type="number"
-                    name="price"
-                    value={form.price}
-                    onChange={handleChange}
-                    className={inputClass}
-                    placeholder="35000"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1">Tavsif (ixtiyoriy)</label>
-                <textarea
-                  name="description"
-                  value={form.description}
-                  onChange={handleChange}
-                  rows={2}
-                  className={inputClass}
-                  placeholder="Taom tarkibi haqida ma'lumot..."
-                />
-              </div>
-
-              {/* Rasm yuklash bo'limi */}
-              <div className="border border-dashed border-gray-200 rounded-xl p-3 bg-gray-50/60">
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <label className="text-xs font-bold text-gray-700 flex items-center gap-2 cursor-pointer">
-                    <LucideImage size={16} className="text-gray-500" />
-                    <span>Rasm yuklash (Galereyadan)</span>
-                  </label>
+                <div className="flex gap-2 pt-4 mt-2 border-t border-slate-100">
                   <button
-                    type="button"
-                    onClick={() => {
-                      if (!form.name.trim()) {
-                        setFileError("Avval taom nomini kiriting, shundan keyin mos rasm topamiz.");
-                        return;
-                      }
-                      setFileError("");
-                      setForm((prev) => ({
-                        ...prev,
-                        imageUrl: suggestImageForDish(form.name, form.category),
-                      }));
-                    }}
-                    className="shrink-0 flex items-center gap-1 text-[11px] font-semibold text-[#8B4513] bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg hover:bg-amber-100 transition active:scale-95"
+                    onClick={() => openEditModal(item)}
+                    className="flex-1 bg-amber-50 text-amber-700 py-2 rounded-xl text-xs font-semibold hover:bg-amber-100 transition cursor-pointer flex items-center justify-center gap-1"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Nomiga mos rasm topish</span>
+                    ✏️ Tahrirlash
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirmItem(item)}
+                    className="flex-1 bg-red-50 text-red-600 py-2 rounded-xl text-xs font-semibold hover:bg-red-100 transition cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    🗑️ O'chirish
                   </button>
                 </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-100 file:text-amber-800 hover:file:bg-amber-200 cursor-pointer"
-                />
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
 
-                {fileError && (
-                  <p className="text-[11px] text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5 mt-2">
-                    {fileError}
-                  </p>
-                )}
-
-                <div className="text-center my-2 text-[10px] text-gray-400 font-bold">
-                  — YOKI LINK QO'YISH —
-                </div>
-
+      {/* TAOM QO'SHISH / TAHRIRLASH MODALI */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-bold mb-4 text-slate-800">
+              {editingItem ? "Taomni tahrirlash" : "Yangi taom qo'shish"}
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">
+                  Taom nomi
+                </label>
                 <input
                   type="text"
-                  name="imageUrl"
-                  value={form.imageUrl && !form.imageUrl.startsWith("data:image") ? form.imageUrl : ""}
-                  onChange={handleChange}
-                  className={`${inputClass} py-1.5 text-xs`}
-                  placeholder="https://images.unsplash.com/... (ixtiyoriy)"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white text-slate-800"
+                  placeholder="Masalan: Somsa"
                 />
-
-                {/* Tanlangan rasmning kichik ko'rinishi (Preview) + tozalash tugmasi */}
-                {form.imageUrl ? (
-                  <div className="mt-2 flex items-center gap-2 bg-white p-1.5 rounded-lg border border-gray-200 shadow-sm">
-                    <img
-                      src={form.imageUrl}
-                      alt="Preview"
-                      className="w-10 h-10 object-cover rounded-md shrink-0"
-                    />
-                    <span className="text-[10px] text-green-600 font-medium flex-1">
-                      Rasm muvaffaqiyatli tanlandi!
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setForm((prev) => ({ ...prev, imageUrl: "" }))}
-                      className="text-gray-400 hover:text-red-500 transition p-1"
-                      title="Rasmni olib tashlash"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-2 flex items-center gap-2 bg-white p-1.5 rounded-lg border border-gray-200 text-gray-400">
-                    <ImageOff className="w-4 h-4 shrink-0" />
-                    <span className="text-[10px]">Hozircha rasm tanlanmagan</span>
-                  </div>
-                )}
               </div>
-
-              <div className="flex items-center gap-2 py-1">
-                <input
-                  type="checkbox"
-                  name="available"
-                  checked={form.available}
-                  onChange={handleChange}
-                  id="available"
-                  className="w-4 h-4 accent-[#B22222]"
-                />
-                <label htmlFor="available" className="text-xs font-medium text-gray-700 select-none">
-                  Ushbu taom hozir sotuvda mavjud
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">
+                  Narxi (so'm)
                 </label>
+                <input
+                  type="number"
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white text-slate-800"
+                  placeholder="Masalan: 15000"
+                />
               </div>
-
-              <div className="flex gap-2 pt-3 border-t border-gray-100">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">
+                  Kategoriya
+                </label>
+                <input
+                  type="text"
+                  value={form.category}
+                  onChange={(e) =>
+                    setForm({ ...form, category: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white text-slate-800"
+                  placeholder="Taom, Salat, Ichimlik va h.k."
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">
+                  Rasm havolasi (URL)
+                </label>
+                <input
+                  type="text"
+                  value={form.imageUrl}
+                  onChange={(e) =>
+                    setForm({ ...form, imageUrl: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white text-slate-800"
+                  placeholder="https://..."
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
                 <button
                   type="submit"
-                  className="flex-1 bg-[#B22222] text-white py-2.5 rounded-xl text-xs font-bold hover:bg-[#8B0000] active:scale-95 transition-all shadow-md shadow-red-900/20"
+                  className="flex-1 bg-amber-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-amber-700 transition cursor-pointer"
                 >
-                  Saqlash
+                  {editingItem ? "Yangilash" : "Saqlash"}
                 </button>
                 <button
                   type="button"
@@ -598,12 +311,74 @@ export default function MenuManager() {
                     setModalOpen(false);
                     resetForm();
                   }}
-                  className="flex-1 border border-gray-200 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-50 text-gray-500 transition active:scale-95"
+                  className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 transition cursor-pointer"
                 >
                   Bekor qilish
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CHIQUVCHI ZAMONAVIY CHIQISH (LOGOUT) MODAL OYNASI */}
+      {logoutModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
+            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
+              🚪
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-1">
+              Tizimdan chiqmoqchimisiz?
+            </h3>
+            <p className="text-xs text-slate-500 mb-6">
+              Hisobingizdan chiqib ketasiz va qayta kirish talab etiladi.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={confirmLogout}
+                className="flex-1 bg-red-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 transition cursor-pointer"
+              >
+                Ha, Chiqish
+              </button>
+              <button
+                onClick={() => setLogoutModalOpen(false)}
+                className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 transition cursor-pointer"
+              >
+                Bekor qilish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAOMNI O'CHIRISH TASDIQLASH MODALI */}
+      {deleteConfirmItem && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
+            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
+              ⚠️
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-1">
+              Taomni o'chirish
+            </h3>
+            <p className="text-xs text-slate-500 mb-6">
+              Siz rostdan ham <strong>"{deleteConfirmItem.name}"</strong> taomini o'chirmoqchimisiz?
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={confirmDeleteMeal}
+                className="flex-1 bg-red-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 transition cursor-pointer"
+              >
+                O'chirish
+              </button>
+              <button
+                onClick={() => setDeleteConfirmItem(null)}
+                className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 transition cursor-pointer"
+              >
+                Bekor qilish
+              </button>
+            </div>
           </div>
         </div>
       )}

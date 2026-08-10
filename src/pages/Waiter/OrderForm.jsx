@@ -1,554 +1,316 @@
-import React, { useEffect, useState, useRef } from "react";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  addDoc,
-} from "firebase/firestore";
-import { useSearchParams } from "react-router-dom";
-
+import React, { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { collection, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase/config.js";
 import { useAuth } from "../../context/AuthContext";
-import { toast } from "react-toastify";
-import "./OrderForm.css";
 
-export default function OrderForm() {
-  const { cafeId, user } = useAuth();
-
+export default function WaiterOrder() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { cafeId, currentUser } = useAuth();
 
-  const [menu, setMenu] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const initialTable = searchParams.get("table") || "1";
+  const [tableNumber, setTableNumber] = useState(initialTable);
+
+  const [categories, setCategories] = useState(["Barchasi"]);
+  const [selectedCategory, setSelectedCategory] = useState("Barchasi");
+  const [menuItems, setMenuItems] = useState([]);
   const [cart, setCart] = useState([]);
-  const [tableNumber, setTableNumber] = useState("");
-  const [note, setNote] = useState("");
-  const [category, setCategory] = useState("all");
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [showCart, setShowCart] = useState(false);
 
-  // Audio oqimni brauzer bloklamasligi uchun ref va holat
-  const audioCtxRef = useRef(null);
-
-  // Internetdan havola yuklamasdan toza SMS/Bildirishnoma ovozi generatsiyasi
-  const playCleanSmsSound = async () => {
-    try {
-      if (!audioCtxRef.current) {
-        const AudioContext =
-          window.AudioContext || window.webkitAudioContext;
-
-        if (AudioContext) {
-          audioCtxRef.current = new AudioContext();
-        }
-      }
-
-      const ctx = audioCtxRef.current;
-      if (!ctx) return;
-
-      if (ctx.state === "suspended") {
-        await ctx.resume();
-      }
-
-      const now = ctx.currentTime;
-
-      // 1-tovush
-      const osc1 = ctx.createOscillator();
-      const gain1 = ctx.createGain();
-
-      osc1.type = "sine";
-      osc1.frequency.setValueAtTime(650, now);
-
-      gain1.gain.setValueAtTime(0.12, now);
-      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-
-      osc1.connect(gain1);
-      gain1.connect(ctx.destination);
-
-      // 2-tovush
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-
-      osc2.type = "sine";
-      osc2.frequency.setValueAtTime(950, now + 0.06);
-
-      gain2.gain.setValueAtTime(0, now);
-      gain2.gain.setValueAtTime(0.12, now + 0.06);
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-
-      osc1.start(now);
-      osc1.stop(now + 0.08);
-
-      osc2.start(now + 0.06);
-      osc2.stop(now + 0.25);
-    } catch (e) {
-      console.log("OrderForm ichida ovoz xatoligi:", e);
-    }
-  };
-
-  // Ofitsiant ixtiyoriy joyga klik qilganda audio oqimni tayyorlab qo'yish
   useEffect(() => {
-    const initAudio = () => {
-      if (!audioCtxRef.current) {
-        const AudioContext =
-          window.AudioContext || window.webkitAudioContext;
+    const menuRef = collection(db, "menu");
 
-        if (AudioContext) {
-          audioCtxRef.current = new AudioContext();
-        }
-      }
-
-      if (
-        audioCtxRef.current &&
-        audioCtxRef.current.state === "suspended"
-      ) {
-        audioCtxRef.current.resume();
-      }
-    };
-
-    window.addEventListener("click", initAudio);
-    window.addEventListener("touchstart", initAudio);
-
-    return () => {
-      window.removeEventListener("click", initAudio);
-      window.removeEventListener("touchstart", initAudio);
-    };
-  }, []);
-
-  // Stol grid'idan "?table=5" kabi manzil bilan kelinsa stolni to'ldirish
-  useEffect(() => {
-    const tableFromUrl = searchParams.get("table");
-
-    if (tableFromUrl) {
-      setTableNumber(tableFromUrl);
-    }
-  }, [searchParams]);
-
-  // =========================================================
-  // MENYU TAOMLARINI REAL-TIME YUKLASH
-  // =========================================================
-  useEffect(() => {
-    const effectiveCafeId = cafeId || user?.cafeId;
-
-    if (!effectiveCafeId) {
-      console.log("❌ cafeId topilmadi:", {
-        cafeId,
-        userCafeId: user?.cafeId,
-        user,
-      });
-
-      setMenu([]);
-      setLoading(false);
-      return;
-    }
-
-    console.log("✅ Ofitsiant cafeId:", effectiveCafeId);
-
-    const q = query(
-      collection(db, "menu"),
-      where("cafeId", "==", effectiveCafeId)
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
+    const unsub = onSnapshot(
+      menuRef,
       (snapshot) => {
-        const data = snapshot.docs
-          .map((d) => ({
-            id: d.id,
-            ...d.data(),
-          }))
-          .filter((dish) => dish.available !== false);
+        const items = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
-        console.log("🍽️ Topilgan taomlar:", data);
+        let finalItems = items;
+        if (cafeId) {
+          const cafeFiltered = items.filter((item) => item.cafeId === cafeId);
+          if (cafeFiltered.length > 0) {
+            finalItems = cafeFiltered;
+          }
+        }
 
-        setMenu(data);
+        setMenuItems(finalItems);
+
+        const rawCats = finalItems.map((i) => i.category).filter(Boolean);
+        const uniqueCats = Array.from(new Set(rawCats));
+        setCategories(["Barchasi", ...uniqueCats]);
         setLoading(false);
       },
       (error) => {
-        console.error("❌ Menyuni yuklashda xatolik:", error);
-        setMenu([]);
+        console.error("Menyuni yuklashda xatolik:", error);
         setLoading(false);
       }
     );
 
-    return () => unsubscribe();
-  }, [cafeId, user?.cafeId]);
+    return () => unsub();
+  }, [cafeId]);
 
-  const categories = [
-    "all",
-    "taom",
-    "desert",
-    "ichimlik",
-    "salat",
-    "boshqa",
-  ];
-
-  const filteredMenu =
-    category === "all"
-      ? menu
-      : menu.filter((d) => d.category === category);
-
-  const addToCart = (dish) => {
+  const addToCart = (item) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.id === dish.id);
-
+      const existing = prev.find((i) => i.id === item.id);
       if (existing) {
-        return prev.map((item) =>
-          item.id === dish.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+        return prev.map((i) =>
+          i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-
-      return [...prev, { ...dish, quantity: 1 }];
+      return [...prev, { ...item, quantity: 1 }];
     });
   };
 
-  const decreaseQuantity = (dishId) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.id === dishId);
-
-      if (existing && existing.quantity > 1) {
-        return prev.map((item) =>
-          item.id === dishId
-            ? { ...item, quantity: item.quantity - 1 }
-            : item
-        );
-      }
-
-      return prev.filter((item) => item.id !== dishId);
-    });
-  };
-
-  const getQuantityInCart = (dishId) => {
-    const item = cart.find((i) => i.id === dishId);
-
-    return item ? item.quantity : 0;
+  const updateQuantity = (id, delta) => {
+    setCart((prev) =>
+      prev
+        .map((i) => {
+          if (i.id === id) {
+            const newQty = i.quantity + delta;
+            return newQty > 0 ? { ...i, quantity: newQty } : null;
+          }
+          return i;
+        })
+        .filter(Boolean)
+    );
   };
 
   const totalPrice = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
-
-  const totalItems = cart.reduce(
-    (sum, item) => sum + item.quantity,
+    (sum, item) => sum + Number(item.price || 0) * item.quantity,
     0
   );
 
   const handleSubmitOrder = async () => {
     if (!tableNumber) {
-      alert("Iltimos, stol raqamini kiriting");
+      alert("Iltimos, stol raqamini kiriting!");
       return;
     }
-
     if (cart.length === 0) {
-      alert("Iltimos, kamida bitta taom tanlang");
-      return;
-    }
-
-    const effectiveCafeId = cafeId || user?.cafeId;
-
-    if (!effectiveCafeId) {
-      alert("Kafe ma'lumotlari topilmadi. Iltimos, qayta kiring.");
-      console.error("❌ Buyurtma uchun cafeId topilmadi:", {
-        cafeId,
-        userCafeId: user?.cafeId,
-        user,
-      });
+      alert("Savat bo'sh! Kamida bitta taom tanlang.");
       return;
     }
 
     setSubmitting(true);
-
     try {
-      await addDoc(collection(db, "orders"), {
-        cafeId: effectiveCafeId,
-        tableNumber,
-
-        items: cart.map((item) => ({
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
+      const orderData = {
+        cafeId: cafeId || "",
+        tableNumber: Number(tableNumber),
+        items: cart.map((i) => ({
+          id: i.id,
+          name: i.name,
+          price: Number(i.price || 0),
+          quantity: i.quantity,
         })),
-
         totalPrice,
-        note,
-        kitchenStatus: "pending",
         paymentStatus: "unpaid",
+        kitchenStatus: "pending", // Oshxona uchun muhim!
+        itemStatuses: cart.map(() => "pending"),
         createdAt: new Date(),
-      });
+        waiterEmail: currentUser?.email || "",
+      };
 
+      console.log("Yuborilayotgan buyurtma:", orderData);
+
+      const docRef = await addDoc(collection(db, "orders"), orderData);
+      console.log("Buyurtma muvaffaqiyatli saqlandi, ID:", docRef.id);
+
+      alert("Buyurtma oshxonaga yuborildi!");
       setCart([]);
-      setTableNumber("");
-      setNote("");
-      setShowCart(false);
-
-      toast.info("🚀 Buyurtma oshxonaga yuborildi!");
-
-      // Audio tayyor bo'lsa ishlaydi
-      playCleanSmsSound();
+      navigate("/waiter/tables");
     } catch (error) {
-      console.error(
-        "Buyurtmani yuborishda xatolik:",
-        error
-      );
-
-      alert(
-        `Xatolik yuz berdi:\n${
-          error?.message || "Qaytadan urinib ko'ring"
-        }`
-      );
+      console.error("Buyurtma yuborishda xatolik:", error);
+      alert("Xatolik: " + error.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) {
-    return <div>Yuklanmoqda...</div>;
-  }
+  const filteredItems = menuItems.filter((item) => {
+    if (selectedCategory === "Barchasi") return true;
+    if (!item.category) return false;
+    return (
+      String(item.category).trim().toLowerCase() ===
+      String(selectedCategory).trim().toLowerCase()
+    );
+  });
 
   return (
-    <div
-      className="p-4 sm:p-6 max-w-4xl mx-auto overflow-x-hidden"
-      style={{ paddingBottom: "220px" }}
-    >
-      <h1 className="text-2xl font-bold text-center mb-5">
-        Yangi buyurtma
-      </h1>
-
-      {/* Stol raqami */}
-      <div className="mb-4">
-        <label className="text-sm font-medium text-gray-700">
-          Stol raqami
-        </label>
-
-        <input
-          type="text"
-          value={tableNumber}
-          onChange={(e) => setTableNumber(e.target.value)}
-          className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
-          placeholder="Masalan: 5"
-        />
-      </div>
-
-      {/* Kategoriya filter */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-        {categories.map((cat) => (
+    <div className="min-h-screen bg-slate-50 text-slate-800 w-full flex flex-col font-sans">
+      <header className="bg-white border-b border-slate-200 px-4 py-3 sm:px-8 flex justify-between items-center shadow-sm">
+        <div className="flex items-center gap-3">
           <button
-            key={cat}
-            onClick={() => setCategory(cat)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
-              category === cat
-                ? "bg-amber-600 text-white"
-                : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-100"
-            }`}
+            onClick={() => navigate("/waiter/tables")}
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition cursor-pointer"
           >
-            {cat === "all" ? "Barchasi" : cat}
+            ← Stollar
           </button>
-        ))}
-      </div>
+          <span className="font-bold text-lg text-slate-900 hidden sm:inline">
+            Yangi buyurtma
+          </span>
+        </div>
 
-      {/* Menyu ro'yxati */}
-      {filteredMenu.length === 0 ? (
-        <p className="text-gray-400 text-sm">
-          Taomlar topilmadi
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {filteredMenu.map((dish, index) => {
-            const qty = getQuantityInCart(dish.id);
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-md">
+            Stol №{tableNumber}
+          </span>
+        </div>
+      </header>
 
-            const animationClass =
-              index % 2 === 0
-                ? "animate-fade-left"
-                : "animate-fade-right";
+      <main className="max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
+        <div className="lg:col-span-2 flex flex-col gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between gap-4">
+            <span className="text-sm font-semibold text-slate-700">
+              Stol raqami:
+            </span>
+            <input
+              type="number"
+              value={tableNumber}
+              onChange={(e) => setTableNumber(e.target.value)}
+              className="w-24 px-3 py-1.5 border border-slate-300 rounded-xl text-center text-base font-bold bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
 
-            return (
-              <div
-                key={dish.id}
-                className={`bg-white rounded-xl shadow border border-gray-100 overflow-hidden flex ${animationClass}`}
-                style={{
-                  animationDelay: `${index * 0.06}s`,
-                  opacity: 0,
-                }}
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                  selectedCategory.toLowerCase() === cat.toLowerCase()
+                    ? "bg-amber-600 text-white shadow-sm"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                }`}
               >
-                <img
-                  src={
-                    dish.imageUrl ||
-                    "/src/assets/placeholders/food-placeholder.jpg"
-                  }
-                  alt={dish.name}
-                  className="w-20 h-20 object-cover"
-                />
+                {cat}
+              </button>
+            ))}
+          </div>
 
-                <div className="flex-1 p-3 flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-semibold text-gray-800 text-sm">
-                      {dish.name}
-                    </h3>
-
-                    <p className="text-amber-700 font-bold text-sm mt-1">
-                      {Number(dish.price).toLocaleString()} so'm
-                    </p>
-                  </div>
-
-                  {qty === 0 ? (
-                    <button
-                      onClick={() => addToCart(dish)}
-                      className="mt-2 bg-amber-600 text-white text-xs px-3 py-1.5 rounded-md hover:bg-amber-700 transition self-start"
-                    >
-                      + Qo'shish
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2 mt-2">
-                      <button
-                        onClick={() =>
-                          decreaseQuantity(dish.id)
-                        }
-                        className="w-7 h-7 rounded-md bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition"
-                      >
-                        −
-                      </button>
-
-                      <span className="text-sm font-medium w-5 text-center">
-                        {qty}
-                      </span>
-
-                      <button
-                        onClick={() => addToCart(dish)}
-                        className="w-7 h-7 rounded-md bg-amber-600 text-white font-bold hover:bg-amber-700 transition"
-                      >
-                        +
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Savat tugmasi */}
-      {cart.length > 0 && (
-        <div className="fixed bottom-[76px] left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-40">
-          <button
-            onClick={() => setShowCart(true)}
-            className="w-full bg-amber-600 text-white py-3.5 rounded-xl font-semibold flex justify-between items-center px-5 shadow-md hover:bg-amber-700 active:scale-[0.98] transition-all duration-200"
-          >
-            <span className="flex items-center gap-2">
-              <span className="bg-white/20 rounded-full w-6 h-6 flex items-center justify-center text-xs">
-                {totalItems}
-              </span>
-
-              ta mahsulot
-            </span>
-
-            <span className="text-base">
-              {totalPrice.toLocaleString()} so'm
-            </span>
-          </button>
-        </div>
-      )}
-
-      {/* Savat modali */}
-      {showCart && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-lg w-full max-w-md p-5 max-h-[85vh] overflow-y-auto">
-            <h2 className="text-lg font-bold mb-4 text-gray-800">
-              Buyurtma tafsilotlari
-            </h2>
-
-            <div className="space-y-2 mb-4">
-              {cart.map((item) => (
+          {loading ? (
+            <div className="text-center py-12 text-slate-400 font-medium">
+              Yuklanmoqda...
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200">
+              Ushbu kategoriyada taomlar topilmadi
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+              {filteredItems.map((item) => (
                 <div
                   key={item.id}
-                  className="flex justify-between items-center text-sm"
+                  onClick={() => addToCart(item)}
+                  className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md transition cursor-pointer flex flex-col justify-between"
                 >
                   <div>
-                    <p className="font-medium text-gray-800">
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="w-full h-24 object-cover rounded-xl mb-2"
+                      />
+                    ) : (
+                      <div className="w-full h-20 bg-slate-100 rounded-xl mb-2 flex items-center justify-center text-2xl">
+                        🍲
+                      </div>
+                    )}
+                    <h3 className="font-semibold text-slate-800 text-sm line-clamp-1">
                       {item.name}
-                    </p>
-
-                    <p className="text-gray-500">
-                      {Number(item.price).toLocaleString()} so'm x{" "}
-                      {item.quantity}
-                    </p>
+                    </h3>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() =>
-                        decreaseQuantity(item.id)
-                      }
-                      className="w-6 h-6 rounded-md bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition"
-                    >
-                      −
-                    </button>
-
-                    <span className="w-5 text-center">
-                      {item.quantity}
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-600">
+                      {Number(item.price || 0).toLocaleString()} so'm
                     </span>
-
-                    <button
-                      onClick={() => addToCart(item)}
-                      className="w-6 h-6 rounded-md bg-amber-600 text-white font-bold hover:bg-amber-700 transition"
-                    >
+                    <button className="w-7 h-7 bg-amber-50 text-amber-600 rounded-lg font-bold text-sm flex items-center justify-center hover:bg-amber-600 hover:text-white transition">
                       +
                     </button>
                   </div>
                 </div>
               ))}
             </div>
+          )}
+        </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                Izoh (ixtiyoriy)
-              </label>
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm sticky top-6 flex flex-col h-[calc(100vh-120px)]">
+            <h2 className="text-lg font-bold text-slate-800 mb-4 pb-3 border-b border-slate-100 flex justify-between items-center">
+              <span>Savat</span>
+              <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                {cart.length} ta tur
+              </span>
+            </h2>
 
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                rows={2}
-                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                placeholder="Masalan: ziravorsiz tayyorlansin"
-              />
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {cart.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 text-xs">
+                  <span className="text-3xl mb-2">🛒</span>
+                  Taom tanlash uchun chap tarafdan bosing
+                </div>
+              ) : (
+                cart.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100"
+                  >
+                    <div className="flex-1 pr-2">
+                      <h4 className="text-xs font-semibold text-slate-800 line-clamp-1">
+                        {item.name}
+                      </h4>
+                      <span className="text-[11px] font-medium text-amber-600">
+                        {(item.price * item.quantity).toLocaleString()} so'm
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateQuantity(item.id, -1)}
+                        className="w-6 h-6 bg-white border border-slate-200 text-slate-700 rounded-md font-bold text-xs flex items-center justify-center hover:bg-slate-100"
+                      >
+                        -
+                      </button>
+                      <span className="text-xs font-bold text-slate-800 min-w-[14px] text-center">
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() => updateQuantity(item.id, 1)}
+                        className="w-6 h-6 bg-white border border-slate-200 text-slate-700 rounded-md font-bold text-xs flex items-center justify-center hover:bg-slate-100"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
-            <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-100">
-              <span className="font-semibold text-gray-800">
-                Jami:
-              </span>
+            <div className="pt-4 border-t border-slate-100 mt-2 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-semibold text-slate-600">
+                  Jami summa:
+                </span>
+                <span className="text-lg font-bold text-amber-600">
+                  {totalPrice.toLocaleString()} so'm
+                </span>
+              </div>
 
-              <span className="font-bold text-amber-700 text-lg">
-                {totalPrice.toLocaleString()} so'm
-              </span>
-            </div>
-
-            <div className="flex gap-2 mt-4">
               <button
+                disabled={submitting || cart.length === 0}
                 onClick={handleSubmitOrder}
-                disabled={submitting}
-                className="flex-1 bg-amber-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition disabled:opacity-50"
+                className="w-full bg-amber-600 text-white py-3 rounded-xl font-bold text-sm shadow-md hover:bg-amber-700 disabled:opacity-50 transition cursor-pointer"
               >
-                {submitting
-                  ? "Yuborilmoqda..."
-                  : "Buyurtma yuborish"}
-              </button>
-
-              <button
-                onClick={() => setShowCart(false)}
-                className="flex-1 border border-gray-300 py-2 rounded-lg text-sm font-medium hover:bg-gray-100 transition"
-              >
-                Yopish
+                {submitting ? "Yuborilmoqda..." : "Buyurtmani oshxonaga yuborish"}
               </button>
             </div>
           </div>
         </div>
-      )}
+      </main>
     </div>
   );
 }

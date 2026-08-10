@@ -54,7 +54,7 @@ const translations = {
     cancel_btn: "Bekor qilish",
     modal_edit_title: "Kafeni tahrirlash",
     modal_edit_desc: "Kafe ma'lumotlarini yangilash",
-    update_btn: "Yangilash"
+    update_btn: "Yangilash",
   },
   ru: {
     big_admin_cafes: "Big Admin — Кафе",
@@ -95,13 +95,13 @@ const translations = {
     cancel_btn: "Отмена",
     modal_edit_title: "Редактировать кафе",
     modal_edit_desc: "Обновить информацию о кафе",
-    update_btn: "Обновить"
-  }
+    update_btn: "Обновить",
+  },
 };
 
 export default function CafeList() {
   const { t, i18n } = useTranslation();
-  const { registerStaff } = useAuth(); 
+  const { registerStaff } = useAuth();
   const [cafes, setCafes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -130,14 +130,14 @@ export default function CafeList() {
     contractEnd: "",
   });
 
-  // Tilni o'zgartirish va saqlash funksiyasi
   const changeLanguage = (lng) => {
     i18n.changeLanguage(lng);
     localStorage.setItem("i18nextLng", lng);
   };
 
   const getText = (key) => {
-    const currentLang = i18n.language || localStorage.getItem("i18nextLng") || "uz";
+    const currentLang =
+      i18n.language || localStorage.getItem("i18nextLng") || "uz";
     const translated = t(key);
     if (translated && translated !== key) return translated;
     return translations[currentLang]?.[key] || translations["uz"]?.[key] || key;
@@ -323,74 +323,212 @@ export default function CafeList() {
 
   if (loading) {
     return (
-      <>
+      <div style={{ backgroundColor: "#f9fafb", minHeight: "100vh" }}>
         <Navbar />
-        <div className="flex items-center justify-center h-64">
-          <p className="text-gray-500 text-lg">Yuklanmoqda...</p>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "256px",
+          }}
+        >
+          <p style={{ color: "#9ca3af", fontSize: "18px" }}>Yuklanmoqda...</p>
         </div>
-      </>
+      </div>
     );
   }
 
-  const currentLang = i18n.language || localStorage.getItem("i18nextLng") || "uz";
+  const currentLang =
+    i18n.language || localStorage.getItem("i18nextLng") || "uz";
 
   return (
-    <>
+    /* Butun sahifani o'rab turuvchi och kulrang fonli konteyner */
+    <div style={{ backgroundColor: "#f9fafb", minHeight: "100vh" }}>
       <Navbar />
-      <div className="p-4 sm:p-6 max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-amber-800">
+
+      {/* Eng tashqi konteyner — Kenglik to'liq 100% va maksimal 1000px */}
+      <div
+        style={{
+          padding: "20px 16px",
+          maxWidth: "1000px",
+          width: "100%",
+          margin: "0 auto",
+          boxSizing: "border-box",
+        }}
+      >
+        {/* SARLAVHA VA TUGMALAR QATORI */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            width: "100%",
+            marginBottom: "24px",
+            flexWrap: "wrap",
+            gap: "12px",
+          }}
+        >
+          <h1
+            style={{
+              fontSize: "24px",
+              fontWeight: "bold",
+              color: "#d97706",
+              margin: 0,
+              whiteSpace: "nowrap",
+            }}
+          >
             {getText("big_admin_cafes")}
           </h1>
-          
-          <div className="flex items-center gap-3">
-            {/* Tilni almashtiruvchi ishlaydigan UZ / RU tugmalari */}
-            <div className="flex gap-1 bg-gray-200 p-1 rounded-lg">
+
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            {/* Tillar tugmasi */}
+            <div
+              style={{
+                display: "flex",
+                gap: "4px",
+                backgroundColor: "#374151",
+                padding: "4px",
+                borderRadius: "8px",
+              }}
+            >
               <button
                 onClick={() => changeLanguage("uz")}
-                className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${
-                  currentLang === "uz" ? "bg-amber-600 text-white shadow" : "text-gray-700"
-                }`}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  fontWeight: "bold",
+                  borderRadius: "6px",
+                  border: "none",
+                  cursor: "pointer",
+                  backgroundColor:
+                    currentLang === "uz" ? "#d97706" : "transparent",
+                  color: currentLang === "uz" ? "#ffffff" : "#d1d5db",
+                }}
               >
                 UZ
               </button>
               <button
                 onClick={() => changeLanguage("ru")}
-                className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${
-                  currentLang === "ru" ? "bg-amber-600 text-white shadow" : "text-gray-700"
-                }`}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  fontWeight: "bold",
+                  borderRadius: "6px",
+                  border: "none",
+                  cursor: "pointer",
+                  backgroundColor:
+                    currentLang === "ru" ? "#d97706" : "transparent",
+                  color: currentLang === "ru" ? "#ffffff" : "#d1d5db",
+                }}
               >
                 RU
               </button>
             </div>
 
+            {/* Kafe qo'shish tugmasi */}
             <button
               onClick={() => setModalOpen(true)}
-              className="cafe-add-btn bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700"
+              style={{
+                backgroundColor: "#d97706",
+                color: "#ffffff",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                fontSize: "14px",
+                fontWeight: "600",
+                border: "none",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
             >
               + {getText("add_cafe_btn")}
             </button>
           </div>
         </div>
 
-        {/* Statistika kartalari */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <div className="cafe-card bg-white rounded-xl shadow p-3 border border-gray-100 text-center">
-            <p className="text-xs text-gray-500">{getText("total")}</p>
-            <p className="text-xl font-bold text-gray-800">{cafes.length}</p>
+        {/* STATISTIKA KARTALARI */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "12px",
+            marginBottom: "20px",
+            width: "100%",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "12px",
+              padding: "16px",
+              textAlign: "center",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+            }}
+          >
+            <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
+              {getText("total")}
+            </p>
+            <p
+              style={{
+                fontSize: "22px",
+                fontWeight: "bold",
+                color: "#1f2937",
+                margin: "4px 0 0 0",
+              }}
+            >
+              {cafes.length}
+            </p>
           </div>
-          <div className="cafe-card bg-white rounded-xl shadow p-3 border border-gray-100 text-center">
-            <p className="text-xs text-gray-500">{getText("active")}</p>
-            <p className="text-xl font-bold text-green-600">{activeCount}</p>
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "12px",
+              padding: "16px",
+              textAlign: "center",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+            }}
+          >
+            <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
+              {getText("active")}
+            </p>
+            <p
+              style={{
+                fontSize: "22px",
+                fontWeight: "bold",
+                color: "#16a34a",
+                margin: "4px 0 0 0",
+              }}
+            >
+              {activeCount}
+            </p>
           </div>
-          <div className="cafe-card bg-white rounded-xl shadow p-3 border border-gray-100 text-center">
-            <p className="text-xs text-gray-500">{getText("blocked")}</p>
-            <p className="text-xl font-bold text-red-600">{blockedCount}</p>
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "12px",
+              padding: "16px",
+              textAlign: "center",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+            }}
+          >
+            <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
+              {getText("blocked")}
+            </p>
+            <p
+              style={{
+                fontSize: "22px",
+                fontWeight: "bold",
+                color: "#dc2626",
+                margin: "4px 0 0 0",
+              }}
+            >
+              {blockedCount}
+            </p>
           </div>
         </div>
 
-        {/* Filter */}
-        <div className="flex gap-2 mb-4">
+        {/* FILTER TUGMALARI */}
+        <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
           {[
             { key: "all", label: getText("filter_all") },
             { key: "active", label: getText("filter_active") },
@@ -399,91 +537,208 @@ export default function CafeList() {
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                filter === f.key
-                  ? "bg-amber-600 text-white"
-                  : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-100"
-              }`}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "8px",
+                fontSize: "14px",
+                fontWeight: "500",
+                cursor: "pointer",
+                backgroundColor: filter === f.key ? "#d97706" : "#ffffff",
+                color: filter === f.key ? "#ffffff" : "#374151",
+                border: filter === f.key ? "none" : "1px solid #d1d5db",
+              }}
             >
               {f.label}
             </button>
           ))}
         </div>
 
-        {/* Kafelar ro'yxati */}
+        {/* KAFELAR RO'YXATI */}
         {filteredCafes.length === 0 ? (
-          <p className="text-gray-400 text-sm">{getText("no_cafes_found")}</p>
+          <p style={{ color: "#9ca3af", fontSize: "14px" }}>
+            {getText("no_cafes_found")}
+          </p>
         ) : (
-          <div className="space-y-3">
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "14px",
+              width: "100%",
+            }}
+          >
             {filteredCafes.map((cafe) => (
               <div
                 key={cafe.id}
-                className="cafe-card bg-white rounded-xl shadow border border-gray-100 p-4"
+                style={{
+                  backgroundColor: "#ffffff",
+                  borderRadius: "14px",
+                  padding: "18px",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  width: "100%",
+                  boxSizing: "border-box",
+                }}
               >
-                <div className="flex justify-between items-start">
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                  }}
+                >
                   <div>
-                    <h3 className="font-semibold text-gray-800">{cafe.name}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                    <h3
+                      style={{
+                        fontWeight: "600",
+                        color: "#1f2937",
+                        margin: 0,
+                        fontSize: "18px",
+                      }}
+                    >
+                      {cafe.name}
+                    </h3>
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        color: "#6b7280",
+                        marginTop: "4px",
+                        marginBottom: "2px",
+                      }}
+                    >
                       {getText("owner_label")}: {cafe.ownerName}
                     </p>
-                    <p className="text-xs text-gray-500">{cafe.phone}</p>
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        color: "#6b7280",
+                        margin: 0,
+                      }}
+                    >
+                      {cafe.phone}
+                    </p>
                     {cafe.address && (
-                      <p className="text-xs text-gray-400 mt-0.5">
+                      <p
+                        style={{
+                          fontSize: "12px",
+                          color: "#9ca3af",
+                          marginTop: "2px",
+                          marginBottom: 0,
+                        }}
+                      >
                         {cafe.address}
                       </p>
                     )}
                   </div>
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
-                      cafe.status === "active"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
+                    style={{
+                      fontSize: "12px",
+                      padding: "4px 12px",
+                      borderRadius: "9999px",
+                      whiteSpace: "nowrap",
+                      backgroundColor:
+                        cafe.status === "active" ? "#dcfce7" : "#fee2e2",
+                      color: cafe.status === "active" ? "#15803d" : "#b91c1c",
+                      fontWeight: "600",
+                    }}
                   >
-                    {cafe.status === "active" ? getText("active") : getText("blocked")}
+                    {cafe.status === "active"
+                      ? getText("active")
+                      : getText("blocked")}
                   </span>
                 </div>
 
                 {(cafe.contractStart || cafe.contractEnd) && (
-                  <div className="mt-2 text-xs text-gray-500">
-                    {getText("contract_label")}: {cafe.contractStart || "?"} — {cafe.contractEnd || "?"}
+                  <div
+                    style={{
+                      marginTop: "10px",
+                      fontSize: "12px",
+                      color: "#6b7280",
+                    }}
+                  >
+                    {getText("contract_label")}: {cafe.contractStart || "?"} —{" "}
+                    {cafe.contractEnd || "?"}
                     {isContractExpired(cafe.contractEnd) && (
-                      <span className="ml-2 text-red-600 font-medium">
+                      <span
+                        style={{
+                          marginLeft: "8px",
+                          color: "#dc2626",
+                          fontWeight: "500",
+                        }}
+                      >
                         {getText("contract_expired")}
                       </span>
                     )}
                     {!isContractExpired(cafe.contractEnd) &&
                       isContractExpiringSoon(cafe.contractEnd) && (
-                        <span className="ml-2 text-orange-500 font-medium">
+                        <span
+                          style={{
+                            marginLeft: "8px",
+                            color: "#f97316",
+                            fontWeight: "500",
+                          }}
+                        >
                           {getText("contract_expiring_soon")}
                         </span>
                       )}
                   </div>
                 )}
 
-                {/* Tugmalar guruhi */}
-                <div className="mt-3 flex items-center gap-2">
+                {/* TUGMALAR GURUHI */}
+                <div
+                  style={{
+                    marginTop: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
                   <button
                     onClick={() => toggleCafeStatus(cafe)}
-                    className={`text-xs px-3 py-1.5 rounded-md font-medium transition ${
-                      cafe.status === "active"
-                        ? "bg-red-100 text-red-700 hover:bg-red-200"
-                        : "bg-green-100 text-green-700 hover:bg-green-200"
-                    }`}
+                    style={{
+                      fontSize: "12px",
+                      padding: "6px 14px",
+                      borderRadius: "6px",
+                      fontWeight: "500",
+                      border: "none",
+                      cursor: "pointer",
+                      backgroundColor:
+                        cafe.status === "active" ? "#fee2e2" : "#dcfce7",
+                      color: cafe.status === "active" ? "#b91c1c" : "#15803d",
+                    }}
                   >
-                    {cafe.status === "active" ? getText("block_btn") : getText("unblock_btn")}
+                    {cafe.status === "active"
+                      ? getText("block_btn")
+                      : getText("unblock_btn")}
                   </button>
 
                   <button
                     onClick={() => openEditModal(cafe)}
-                    className="text-xs px-3 py-1.5 rounded-md font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition"
+                    style={{
+                      fontSize: "12px",
+                      padding: "6px 14px",
+                      borderRadius: "6px",
+                      fontWeight: "500",
+                      border: "none",
+                      cursor: "pointer",
+                      backgroundColor: "#dbeafe",
+                      color: "#1d4ed8",
+                    }}
                   >
                     {getText("edit_btn")}
                   </button>
 
                   <button
                     onClick={() => handleDeleteCafe(cafe.id, cafe.name)}
-                    className="text-xs px-3 py-1.5 rounded-md font-medium bg-gray-100 text-gray-700 hover:bg-red-600 hover:text-white transition"
+                    style={{
+                      fontSize: "12px",
+                      padding: "6px 14px",
+                      borderRadius: "6px",
+                      fontWeight: "500",
+                      border: "none",
+                      cursor: "pointer",
+                      backgroundColor: "#f3f4f6",
+                      color: "#374151",
+                    }}
                   >
                     {getText("delete_btn")}
                   </button>
@@ -493,31 +748,37 @@ export default function CafeList() {
           </div>
         )}
 
-        {/* Modal - Yangi kafe qo'shish */}
+        {/* MODAL - YANGI KAFE QO'SHISH */}
         {modalOpen && (
           <div className="cafe-modal-overlay fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="cafe-modal-box bg-white w-full max-w-md max-h-[92vh] flex flex-col">
-              <div className="cafe-modal-header">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setModalOpen(false);
-                    resetForm();
-                  }}
-                  className="cafe-modal-close"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{width:16,height:16}}>
-                    <path strokeLinecap="round" d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                </button>
-                <h2>{getText("modal_add_title")}</h2>
-                <p>{getText("modal_add_desc")}</p>
+            <div className="cafe-modal-box bg-white w-full max-w-md max-h-[92vh] flex flex-col rounded-2xl p-5">
+              <div className="cafe-modal-header mb-4">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-gray-800">
+                    {getText("modal_add_title")}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalOpen(false);
+                      resetForm();
+                    }}
+                    className="text-gray-400 hover:text-gray-600 text-lg font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {getText("modal_add_desc")}
+                </p>
               </div>
 
               <div className="cafe-modal-body overflow-y-auto">
                 <form onSubmit={handleAddCafe} className="space-y-3.5">
                   <div className="cafe-field">
-                    <label className="cafe-field-label">{getText("cafe_name_label")}</label>
+                    <label className="cafe-field-label">
+                      {getText("cafe_name_label")}
+                    </label>
                     <input
                       type="text"
                       name="name"
@@ -529,7 +790,9 @@ export default function CafeList() {
                   </div>
 
                   <div className="cafe-field">
-                    <label className="cafe-field-label">{getText("owner_name_label")}</label>
+                    <label className="cafe-field-label">
+                      {getText("owner_name_label")}
+                    </label>
                     <input
                       type="text"
                       name="ownerName"
@@ -541,7 +804,9 @@ export default function CafeList() {
                   </div>
 
                   <div className="cafe-field">
-                    <label className="cafe-field-label">{getText("phone_label")}</label>
+                    <label className="cafe-field-label">
+                      {getText("phone_label")}
+                    </label>
                     <input
                       type="text"
                       name="phone"
@@ -553,7 +818,9 @@ export default function CafeList() {
                   </div>
 
                   <div className="cafe-field">
-                    <label className="cafe-field-label">{getText("address_label")}</label>
+                    <label className="cafe-field-label">
+                      {getText("address_label")}
+                    </label>
                     <input
                       type="text"
                       name="address"
@@ -566,7 +833,9 @@ export default function CafeList() {
 
                   <div className="cafe-field grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="cafe-field-label">{getText("contract_start_label")}</label>
+                      <label className="cafe-field-label">
+                        {getText("contract_start_label")}
+                      </label>
                       <input
                         type="date"
                         name="contractStart"
@@ -576,7 +845,9 @@ export default function CafeList() {
                       />
                     </div>
                     <div>
-                      <label className="cafe-field-label">{getText("contract_end_label")}</label>
+                      <label className="cafe-field-label">
+                        {getText("contract_end_label")}
+                      </label>
                       <input
                         type="date"
                         name="contractEnd"
@@ -587,10 +858,14 @@ export default function CafeList() {
                     </div>
                   </div>
 
-                  <div className="cafe-field cafe-director-section">
-                    <span className="cafe-director-badge">{getText("director_section_badge")}</span>
+                  <div className="cafe-field cafe-director-section bg-amber-50 p-3 rounded-xl border border-amber-200">
+                    <span className="cafe-director-badge block text-xs font-bold text-amber-700 mb-2">
+                      {getText("director_section_badge")}
+                    </span>
                     <div className="mb-3">
-                      <label className="cafe-field-label">{getText("owner_username_label")}</label>
+                      <label className="cafe-field-label">
+                        {getText("owner_username_label")}
+                      </label>
                       <input
                         type="text"
                         name="ownerUsername"
@@ -601,7 +876,9 @@ export default function CafeList() {
                       />
                     </div>
                     <div>
-                      <label className="cafe-field-label">{getText("owner_password_label")}</label>
+                      <label className="cafe-field-label">
+                        {getText("owner_password_label")}
+                      </label>
                       <input
                         type="text"
                         name="ownerPassword"
@@ -613,11 +890,11 @@ export default function CafeList() {
                     </div>
                   </div>
 
-                  <div className="cafe-field flex gap-2 pt-1">
+                  <div className="cafe-field flex gap-2 pt-2">
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="cafe-add-btn flex-1 bg-gradient-to-r from-amber-600 to-orange-500 text-white py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
+                      className="cafe-add-btn flex-1 bg-amber-600 text-white py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
                     >
                       {submitting ? getText("saving") : getText("save_btn")}
                     </button>
@@ -638,28 +915,34 @@ export default function CafeList() {
           </div>
         )}
 
-        {/* Modal - Kafeni tahrirlash */}
+        {/* MODAL - KAFENI TAHRIRLASH */}
         {editModalOpen && (
           <div className="cafe-modal-overlay fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="cafe-modal-box bg-white w-full max-w-md max-h-[92vh] flex flex-col">
-              <div className="cafe-modal-header">
-                <button
-                  type="button"
-                  onClick={() => setEditModalOpen(false)}
-                  className="cafe-modal-close"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{width:16,height:16}}>
-                    <path strokeLinecap="round" d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                </button>
-                <h2>{getText("modal_edit_title")}</h2>
-                <p>{getText("modal_edit_desc")}</p>
+            <div className="cafe-modal-box bg-white w-full max-w-md max-h-[92vh] flex flex-col rounded-2xl p-5">
+              <div className="cafe-modal-header mb-4">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-gray-800">
+                    {getText("modal_edit_title")}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setEditModalOpen(false)}
+                    className="text-gray-400 hover:text-gray-600 text-lg font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {getText("modal_edit_desc")}
+                </p>
               </div>
 
               <div className="cafe-modal-body overflow-y-auto">
                 <form onSubmit={handleUpdateCafe} className="space-y-3.5">
                   <div className="cafe-field">
-                    <label className="cafe-field-label">{getText("cafe_name_label")}</label>
+                    <label className="cafe-field-label">
+                      {getText("cafe_name_label")}
+                    </label>
                     <input
                       type="text"
                       name="name"
@@ -670,7 +953,9 @@ export default function CafeList() {
                   </div>
 
                   <div className="cafe-field">
-                    <label className="cafe-field-label">{getText("owner_name_label")}</label>
+                    <label className="cafe-field-label">
+                      {getText("owner_name_label")}
+                    </label>
                     <input
                       type="text"
                       name="ownerName"
@@ -681,7 +966,9 @@ export default function CafeList() {
                   </div>
 
                   <div className="cafe-field">
-                    <label className="cafe-field-label">{getText("phone_label")}</label>
+                    <label className="cafe-field-label">
+                      {getText("phone_label")}
+                    </label>
                     <input
                       type="text"
                       name="phone"
@@ -692,7 +979,9 @@ export default function CafeList() {
                   </div>
 
                   <div className="cafe-field">
-                    <label className="cafe-field-label">{getText("address_label")}</label>
+                    <label className="cafe-field-label">
+                      {getText("address_label")}
+                    </label>
                     <input
                       type="text"
                       name="address"
@@ -704,7 +993,9 @@ export default function CafeList() {
 
                   <div className="cafe-field grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="cafe-field-label">{getText("contract_start_label")}</label>
+                      <label className="cafe-field-label">
+                        {getText("contract_start_label")}
+                      </label>
                       <input
                         type="date"
                         name="contractStart"
@@ -714,7 +1005,9 @@ export default function CafeList() {
                       />
                     </div>
                     <div>
-                      <label className="cafe-field-label">{getText("contract_end_label")}</label>
+                      <label className="cafe-field-label">
+                        {getText("contract_end_label")}
+                      </label>
                       <input
                         type="date"
                         name="contractEnd"
@@ -725,11 +1018,11 @@ export default function CafeList() {
                     </div>
                   </div>
 
-                  <div className="cafe-field flex gap-2 pt-1">
+                  <div className="cafe-field flex gap-2 pt-2">
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="cafe-add-btn flex-1 bg-gradient-to-r from-amber-600 to-orange-500 text-white py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
+                      className="cafe-add-btn flex-1 bg-amber-600 text-white py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
                     >
                       {submitting ? getText("saving") : getText("update_btn")}
                     </button>
@@ -747,6 +1040,6 @@ export default function CafeList() {
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }

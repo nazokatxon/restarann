@@ -1,5 +1,4 @@
 import React, { useId, useState } from "react";
-import { Eye, EyeOff, AlertCircle } from "lucide-react";
 
 const SIZE_STYLES = {
   sm: "text-xs py-1.5 px-3 rounded-lg",
@@ -7,7 +6,6 @@ const SIZE_STYLES = {
   lg: "text-base py-3.5 px-4 rounded-2xl",
 };
 
-const ICON_SIZE = { sm: 14, md: 16, lg: 18 };
 const ICON_PAD = { sm: "pl-8", md: "pl-9", lg: "pl-11" };
 const ICON_PAD_RIGHT = { sm: "pr-8", md: "pr-9", lg: "pr-11" };
 
@@ -85,17 +83,17 @@ export default function Input({
             type="button"
             tabIndex={-1}
             onClick={() => setShowPassword((v) => !v)}
-            className="absolute right-0 top-0 bottom-0 flex items-center pr-3 text-[#8E8676] hover:text-[#241F19] transition-colors"
+            className="absolute right-0 top-0 bottom-0 flex items-center pr-3 text-[#8E8676] hover:text-[#241F19] transition-colors select-none"
             aria-label={showPassword ? "Parolni yashirish" : "Parolni ko'rsatish"}
           >
-            {showPassword ? <EyeOff size={ICON_SIZE[size]} /> : <Eye size={ICON_SIZE[size]} />}
+            {showPassword ? "🙈" : "👁️"}
           </button>
         )}
       </div>
 
       {hasError ? (
         <p id={`${inputId}-error`} className="mt-1.5 text-xs text-[#C0392B] flex items-center gap-1">
-          <AlertCircle size={13} className="shrink-0" /> {error}
+          <span className="shrink-0">⚠️</span> {error}
         </p>
       ) : helperText ? (
         <p id={`${inputId}-helper`} className="mt-1.5 text-xs text-[#8E8676]">

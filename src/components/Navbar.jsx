@@ -3,20 +3,43 @@ import { useAuth } from "../context/AuthContext";
 import { useTranslation } from "react-i18next";
 
 export default function Navbar() {
-
   const { user, role, cafeName, logout } = useAuth();
+  const { t, i18n } = useTranslation();
+
   const [langOpen, setLangOpen] = useState(false);
-
   const [profileOpen, setProfileOpen] = useState(false);
-  const profileRef = useRef(null);
 
+  const profileRef = useRef(null);
+  const langRef = useRef(null);
+
+  // Tashqariga bosganda menyularni yopish
   useEffect(() => {
     function handleClickOutside(event) {
-      if (profileRef.current && !profileRef.current.contains(event.target)) setProfileOpen(false);
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setProfileOpen(false);
+      }
+      if (langRef.current && !langRef.current.contains(event.target)) {
+        setLangOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const languages = [
+    { code: "uz", label: "O'zbek" },
+    { code: "ru", label: "Русский" },
+    { code: "en", label: "English" },
+  ];
+
+  const currentLang = i18n?.language || "uz";
+
+  const handleLangChange = (code) => {
+    if (i18n?.changeLanguage) {
+      i18n.changeLanguage(code);
+    }
+    setLangOpen(false);
+  };
 
   const roleLabels = {
     bigadmin: t("Big Admin"),
@@ -31,65 +54,18 @@ export default function Navbar() {
     await logout();
   };
 
-
-  return (
-    <nav className="w-full h-16 flex items-center justify-between px-6 bg-white border-b border-slate-100 sticky top-0 z-50 shadow-sm">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm">
-          <span className="text-white font-bold text-base">G</span>
-        </div>
-        <span className="font-semibold text-[15px] text-slate-900 tracking-tight">
-          Gusto <span className="text-slate-400 font-normal text-xs ml-0.5">v1.0</span>
-        </span>
-      </div>
-
-      <div className="flex items-center gap-3">
-        {/* Profil */}
-        <div className="relative" ref={profileRef}>
-          <button
-            onClick={() => setProfileOpen(!profileOpen)}
-            className="h-9 flex items-center gap-2 pl-2 pr-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-all"
-          >
-            <div className="w-6.5 h-6.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center text-xs font-bold uppercase">
-              {user?.email?.charAt(0) || "U"}
-            </div>
-            <span className="text-[13px] font-medium text-slate-700 hidden sm:block">
-              {user?.email ? user.email.split("@")[0] : t("Profil")}
-            </span>
-          </button>
-
-          {profileOpen && (
-            <div className="absolute right-0 mt-1.5 w-52 bg-white rounded-xl shadow-xl border border-slate-100 p-1 z-50">
-              <div className="px-3 py-2 border-b border-slate-100 mb-1">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{t("Lavozim")}</p>
-                <p className="text-[13px] font-medium text-slate-800 mt-0.5">
-                  {roleLabels[role] || t("Foydalanuvchi")}
-                </p>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-red-600 font-medium rounded-lg hover:bg-red-50/60 transition-colors"
-              >
-                {t("Chiqish")}
-              </button>
-            </div>
-          )}
-        </div>
-
   const displayName = user?.displayName || user?.username || (user?.email ? user.email.split("@")[0] : "Profil");
   const avatarLetter = displayName.charAt(0).toUpperCase();
 
   const isBigAdmin = role === "bigadmin";
-  const isWaiter = role === "waiter"; // Ofitsiant ekanligini aniqlaymiz
+  const isWaiter = role === "waiter";
   const displayTitle = isBigAdmin ? "Control Hub" : (cafeName || "");
 
   return (
     <nav className="w-full h-16 flex items-center justify-between px-4 sm:px-6 bg-white border-b border-slate-200/80 sticky top-0 z-50 shadow-xs">
-      
       {/* Logotip va Sarlavha */}
       <div className="flex items-center gap-3">
-        
-        {/* Toj belgisi bo'lgan kvadrat block */}
+        {/* Kvadrat block */}
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md shrink-0 ${
           isBigAdmin 
             ? "bg-slate-900 shadow-slate-900/30"
@@ -124,24 +100,22 @@ export default function Navbar() {
             {isBigAdmin ? "SYSTEM" : "v1.0"}
           </span>
         </div>
-
       </div>
 
-      {/* O'ng tomon paneli (Ofitsiant bo'lsa butunlay yashiriladi) */}
+      {/* O'ng tomon paneli (Ofitsiant bo'lsa yashiriladi) */}
       {!isWaiter && (
         <div className="flex items-center gap-2 sm:gap-3">
-          
           {/* Til tanlash */}
           <div className="relative" ref={langRef}>
             <button
               onClick={() => { setLangOpen(!langOpen); setProfileOpen(false); }}
               className="h-9 flex items-center gap-1.5 px-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[13px] font-semibold text-slate-700 transition-all active:scale-95"
             >
-              🌐 <span className="hidden sm:inline">{languages.find((l) => l.code === currentLang)?.label}</span>
+              🌐 <span className="hidden sm:inline">{languages.find((l) => l.code === currentLang)?.label || "O'zbek"}</span>
             </button>
 
             {langOpen && (
-              <div className="absolute right-0 mt-2 w-36 bg-white rounded-xl shadow-xl border border-slate-100 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute right-0 mt-2 w-36 bg-white rounded-xl shadow-xl border border-slate-100 p-1.5 z-50">
                 {languages.map((lang) => (
                   <button
                     key={lang.code}
@@ -173,11 +147,9 @@ export default function Navbar() {
               </span>
             </button>
 
-            {/* Ochiladigan Dropdown Menyu */}
+            {/* Dropdown Menyu */}
             {profileOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                
-                {/* Lavozim bloki */}
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50">
                 <div className="px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/80 mb-2">
                   {!isBigAdmin && cafeName && (
                     <p className="text-[12px] font-extrabold text-amber-800 border-b border-amber-200/50 pb-1 mb-1 truncate">
@@ -192,7 +164,6 @@ export default function Navbar() {
                   </p>
                 </div>
                 
-                {/* Chiqish Tugmasi */}
                 <button
                   onClick={handleLogout}
                   className="w-full flex items-center justify-between px-3.5 py-2.5 text-[13px] text-red-600 font-bold bg-red-50 hover:bg-red-600 hover:text-white rounded-xl transition-all duration-200 group shadow-xs active:scale-95"
@@ -213,11 +184,9 @@ export default function Navbar() {
                     />
                   </svg>
                 </button>
-
               </div>
             )}
           </div>
-
         </div>
       )}
     </nav>

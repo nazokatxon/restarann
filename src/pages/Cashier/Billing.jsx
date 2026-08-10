@@ -1,16 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
-import {
-  CreditCard,
-  BarChart2,
-  UtensilsCrossed,
-  Menu as MenuIcon,
-  Users,
-  Settings,
-  LogOut,
-  Globe,
-} from "lucide-react";
 
 import { db } from "../../firebase/config.js";
 import { useAuth } from "../../context/AuthContext";
@@ -120,7 +110,7 @@ export default function Reports() {
               onClick={() => navigate("/cashier/billing")}
               className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#322825] rounded-xl font-medium transition text-left"
             >
-              <CreditCard className="w-5 h-5" />
+              <span>💳</span>
               <span>Kassa</span>
             </button>
 
@@ -128,7 +118,7 @@ export default function Reports() {
               onClick={() => navigate("/cashier/reports")}
               className="w-full flex items-center gap-3 px-4 py-3 bg-[#4a3528] text-white rounded-xl font-medium transition text-left"
             >
-              <BarChart2 className="w-5 h-5" />
+              <span>📊</span>
               <span>Hisobotlar</span>
             </button>
 
@@ -136,7 +126,7 @@ export default function Reports() {
               onClick={() => navigate("/cashier/tables")}
               className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#322825] rounded-xl font-medium transition text-left"
             >
-              <UtensilsCrossed className="w-5 h-5" />
+              <span>🍽️</span>
               <span>Stollar</span>
             </button>
 
@@ -144,7 +134,7 @@ export default function Reports() {
               onClick={() => navigate("/cashier/menu")}
               className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#322825] rounded-xl font-medium transition text-left"
             >
-              <MenuIcon className="w-5 h-5" />
+              <span>📜</span>
               <span>Menyu</span>
             </button>
 
@@ -152,7 +142,7 @@ export default function Reports() {
               onClick={() => navigate("/cashier/staff")}
               className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#322825] rounded-xl font-medium transition text-left"
             >
-              <Users className="w-5 h-5" />
+              <span>👥</span>
               <span>Xodimlar</span>
             </button>
 
@@ -160,7 +150,7 @@ export default function Reports() {
               onClick={() => navigate("/cashier/settings")}
               className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#322825] rounded-xl font-medium transition text-left"
             >
-              <Settings className="w-5 h-5" />
+              <span>⚙️</span>
               <span>Sozlamalar</span>
             </button>
           </nav>
@@ -170,7 +160,7 @@ export default function Reports() {
           onClick={logout}
           className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-red-400 hover:bg-[#322825] rounded-xl font-medium transition text-left"
         >
-          <LogOut className="w-5 h-5" />
+          <span>🚪</span>
           <span>Chiqish</span>
         </button>
       </aside>

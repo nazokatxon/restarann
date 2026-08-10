@@ -1,7 +1,5 @@
 import React from "react";
-import { Loader2 } from "lucide-react";
 
- 
 const VARIANT_STYLES = {
   primary: "bg-[#1B3A6B] text-white hover:bg-[#16305A] active:bg-[#122748] disabled:bg-[#1B3A6B]/40",
   secondary: "bg-[#0E8C82] text-white hover:bg-[#0C766D] active:bg-[#0A625A] disabled:bg-[#0E8C82]/40",
@@ -32,7 +30,7 @@ function cn(...classes) {
  * @param {Object} props
  * @param {"primary"|"secondary"|"accent"|"gold"|"outline"|"ghost"|"danger"} [props.variant="primary"]
  * @param {"sm"|"md"|"lg"} [props.size="md"]
- * @param {React.ReactNode} [props.icon] - Matndan oldin chiqadigan ikonka (masalan lucide-react)
+ * @param {React.ReactNode} [props.icon] - Matndan oldin chiqadigan ikonka
  * @param {React.ReactNode} [props.iconRight] - Matndan keyin chiqadigan ikonka
  * @param {boolean} [props.loading=false] - Yuklanish holatini ko'rsatadi, tugmani avtomatik disable qiladi
  * @param {boolean} [props.disabled=false]
@@ -57,7 +55,7 @@ export default function Button({
 }) {
   const isDisabled = disabled || loading;
 
-  return (                   
+  return (
     <button
       type={type}
       disabled={isDisabled}
@@ -76,7 +74,20 @@ export default function Button({
       {...rest}
     >
       {loading ? (
-        <Loader2 size={ICON_SIZE[size]} className="animate-spin" />
+        <svg
+          className="animate-spin"
+          xmlns="http://www.w3.org/2000/svg"
+          width={ICON_SIZE[size]}
+          height={ICON_SIZE[size]}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+        </svg>
       ) : (
         icon && <span className="shrink-0 flex items-center">{icon}</span>
       )}

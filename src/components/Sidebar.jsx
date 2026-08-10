@@ -2,18 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router-dom";
-import {
-  LayoutDashboard,
-  ClipboardList,
-  Users,
-  Coffee,
-  ChefHat,
-  CreditCard,
-  Plus,
-  Globe,
-  LogOut,
-  BarChart2,
-} from "lucide-react";
 import "./Sidebar.css";
 
 const languages = [
@@ -23,22 +11,22 @@ const languages = [
 
 const NAV_ITEMS_BY_ROLE = {
   waiter: [
-    { to: "/waiter/tables", match: "tables", Icon: LayoutDashboard, key: "tables_title", fallback: "Stollar" },
-    { to: "/waiter/order", match: "order", Icon: Plus, key: "new_order_title", fallback: "Yangi buyurtma" },
+    { to: "/waiter/tables", match: "tables", icon: "📊", key: "tables_title", fallback: "Stollar" },
+    { to: "/waiter/order", match: "order", icon: "➕", key: "new_order_title", fallback: "Yangi buyurtma" },
   ],
   chef: [
-    { to: "/chef/queue", match: "queue", Icon: ChefHat, key: "kitchen_queue_title", fallback: "Navbat" },
+    { to: "/chef/queue", match: "queue", icon: "👨‍🍳", key: "kitchen_queue_title", fallback: "Navbat" },
   ],
   cashier: [
-    { to: "/cashier/billing", match: "billing", Icon: CreditCard, key: "billing_title", fallback: "Kassa" },
-    { to: "/cashier/billing?tab=reports", match: "tab=reports", Icon: BarChart2, key: "analytics_title", fallback: "Hisobotlar" },
+    { to: "/cashier/billing", match: "billing", icon: "💳", key: "billing_title", fallback: "Kassa" },
+    { to: "/cashier/billing?tab=reports", match: "tab=reports", icon: "📈", key: "analytics_title", fallback: "Hisobotlar" },
   ],
 };
 
 const ADMIN_NAV_ITEMS = [
-  { to: "/admin/analytics", match: "analytics", Icon: LayoutDashboard, key: "analytics_title", fallback: "Analitika" },
-  { to: "/admin/menu", match: "menu", Icon: ClipboardList, key: "menu_title", fallback: "Menyu" },
-  { to: "/admin/staff", match: "staff", Icon: Users, key: "staff_title", fallback: "Xodimlar" },
+  { to: "/admin/analytics", match: "analytics", icon: "📊", key: "analytics_title", fallback: "Analitika" },
+  { to: "/admin/menu", match: "menu", icon: "📋", key: "menu_title", fallback: "Menyu" },
+  { to: "/admin/staff", match: "staff", icon: "👥", key: "staff_title", fallback: "Xodimlar" },
 ];
 
 export default function Sidebar() {
@@ -86,7 +74,7 @@ export default function Sidebar() {
           langOpen ? "open" : ""
         }`}
       >
-        <Globe size={18} className="text-gray-500" />
+        <span className="text-base">🌐</span>
         <span className="uppercase">{languages.find((l) => l.code === currentLang)?.label || "UZ"}</span>
       </button>
 
@@ -111,7 +99,7 @@ export default function Sidebar() {
       <div className="sb-modal-overlay">
         <div className="sb-modal-card">
           <div className="sb-modal-icon-wrap">
-            <LogOut size={20} />
+            <span className="text-2xl">🚪</span>
           </div>
           <h3 className="sb-modal-title">Tizimdan chiqish</h3>
           <p className="sb-modal-text">Haqiqatan ham profilingizdan chiqmoqchimisz?</p>
@@ -132,18 +120,18 @@ export default function Sidebar() {
       <>
         <div className="sb-sidebar-desktop">
           <div className="sb-logo">
-            <Coffee size={22} />
+            <span className="text-2xl">☕</span>
           </div>
 
           <div className="sb-nav-list">
-            {ADMIN_NAV_ITEMS.map(({ to, match, Icon, key, fallback }) => (
+            {ADMIN_NAV_ITEMS.map(({ to, match, icon, key, fallback }) => (
               <Link
                 key={to}
                 to={to}
                 className={`sb-nav-item ${location.pathname.includes(match) ? "active" : ""}`}
               >
                 <span className="sb-icon-wrap">
-                  <Icon className="sb-icon" />
+                  <span className="sb-icon text-lg">{icon}</span>
                 </span>
                 <span className="sb-nav-label">{getItemLabel(key, fallback)}</span>
               </Link>
@@ -156,7 +144,7 @@ export default function Sidebar() {
 
           <button onClick={() => setShowLogoutModal(true)} className="sb-logout-btn" style={{ width: 64, padding: "10px 0" }}>
             <span className="sb-icon-wrap">
-              <LogOut className="sb-icon" />
+              <span className="sb-icon text-lg">🚪</span>
             </span>
             <span className="sb-nav-label">{getItemLabel("close_window", "Chiqish")}</span>
           </button>
@@ -173,9 +161,9 @@ export default function Sidebar() {
     <>
       <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-white/95 backdrop-blur-md px-5 py-2 rounded-[28px] shadow-2xl border border-gray-100 flex items-center justify-between gap-4 min-w-[420px] max-w-[95vw]">
         
-        {/* Navigatsiya tugmalari (Kassa va Hisobotlar yonma-yon) */}
+        {/* Navigatsiya tugmalari */}
         <div className="flex items-center gap-2 flex-1">
-          {navItems.map(({ to, match, Icon, key, fallback }) => {
+          {navItems.map(({ to, match, icon, key, fallback }) => {
             const isActive = match.includes("tab=reports") 
               ? location.search.includes("tab=reports") 
               : !location.search.includes("tab=reports") && location.pathname.includes(match);
@@ -190,7 +178,7 @@ export default function Sidebar() {
                     : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                <Icon size={18} />
+                <span className="text-base">{icon}</span>
                 <span>{getItemLabel(key, fallback)}</span>
               </Link>
             );
@@ -208,7 +196,7 @@ export default function Sidebar() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-gray-500 hover:text-red-600 hover:bg-red-50 font-bold text-xs transition"
             title="Chiqish"
           >
-            <LogOut size={18} />
+            <span className="text-base">🚪</span>
             <span>Chiqish</span>
           </button>
         </div>

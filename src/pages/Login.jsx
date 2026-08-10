@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Lock, LogIn } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
 import Input from "../components/Input.jsx";
 import Button from "../components/Button.jsx";
@@ -27,8 +26,6 @@ const ERROR_MESSAGES = {
 };
 
 // Foydalanuvchi kiritgan matnni Firebase kutadigan email formatiga aylantiradi.
-// Agar u allaqachon email bo'lsa (masalan bigadmin@gmail.com), o'zgartirmasdan qoldiradi.
-// Agar oddiy login bo'lsa (masalan "ali123"), avtomatik "@kafe.com" qo'shadi.
 function toFirebaseEmail(rawInput) {
   const trimmed = rawInput.trim().toLowerCase();
   if (trimmed.includes("@")) return trimmed;
@@ -37,7 +34,7 @@ function toFirebaseEmail(rawInput) {
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login, setAuthData } = useAuth(); // setAuthData context'da holatni qo'lda yangilash uchun (agar mavjud bo'lsa)
+  const { login, setAuthData } = useAuth();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -63,17 +60,17 @@ export default function Login() {
     const loginEmail = toFirebaseEmail(username);
 
     try {
-      // 1. Birinchi bo'lib Firebase Auth (BigAdmin / Admin) orqali kirishga urinib ko'radi
+      // 1. Birinchi bo'lib Firebase Auth orqali kirishga urinib ko'radi
       const loggedInRole = await login(loginEmail, password);
       const target = ROLE_ROUTES[loggedInRole] || "/";
       navigate(target, { replace: true });
     } catch (err) {
-      // 2. Agar Firebase Auth'da xatolik bersa (masalan, ishchi kiritilgan bo'lsa), Firestore'dan qidiradi
+      // 2. Agar Firebase Auth'da xatolik bersa, Firestore'dan qidiradi
       try {
         const q = query(
           collection(db, "users"),
           where("email", "==", loginEmail),
-          where("password", "==", password) // Admin xodimlar ro'yxatida bergan oddiy parol
+          where("password", "==", password)
         );
 
         const querySnapshot = await getDocs(q);
@@ -82,7 +79,6 @@ export default function Login() {
           const staffUser = querySnapshot.docs[0].data();
           const staffRole = staffUser.role;
 
-          // Context ichidagi user ma'lumotlarini yangilash funksiyasi (Agar AuthContext'da yozilgan bo'lsa)
           if (typeof setAuthData === "function") {
             setAuthData({
               user: staffUser,
@@ -94,7 +90,6 @@ export default function Login() {
           const target = ROLE_ROUTES[staffRole] || "/";
           navigate(target, { replace: true });
         } else {
-          // Agar Firestore'da ham topilmasa, asosiy Firebase xatoligini ko'rsatadi
           const code = err?.code || "default";
           setFormError(ERROR_MESSAGES[code] || ERROR_MESSAGES.default);
         }
@@ -121,7 +116,7 @@ export default function Login() {
             style={{ background: "#1B3A6B" }}
           >
             <GirihMark />
-            <LogIn size={26} className="text-white relative" />
+            <span className="text-2xl relative">🔑</span>
           </div>
           <h1 className="disp text-2xl font-extrabold text-[#241F19] tracking-tight font-italic">
             Tizimga kirish
@@ -143,7 +138,7 @@ export default function Login() {
           <Input
             label="Login"
             type="text"
-            icon={<User />}
+            icon={<span>👤</span>}
             placeholder="loginingizni kiriting"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -155,7 +150,7 @@ export default function Login() {
           <Input
             label="Parol"
             type="password"
-            icon={<Lock />}
+            icon={<span>🔒</span>}
             placeholder="parolingizni kiriting"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

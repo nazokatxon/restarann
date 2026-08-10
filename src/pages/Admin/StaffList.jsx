@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   collection,
   query,
@@ -10,26 +11,11 @@ import {
 } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
-import {
-  Users,
-  Plus,
-  Edit,
-  Trash2,
-  UserX,
-  UserCheck,
-  DollarSign,
-  CheckCircle,
-  Key,
-  Mail,
-  Phone,
-  Briefcase,
-  RefreshCw,
-  Wallet,
-  X,
-} from "lucide-react";
 
 export default function StaffList() {
-  const { cafeId, registerStaff } = useAuth();
+  const { cafeId, registerStaff, currentUser, logout } = useAuth();
+  const navigate = useNavigate();
+
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -45,6 +31,18 @@ export default function StaffList() {
     salary: "",
     status: "active",
   });
+
+  // TIZIMDAN CHIQISH FUNKSIYASI
+  const handleLogout = async () => {
+    if (window.confirm("Tizimdan chiqmoqchimisiz?")) {
+      try {
+        if (logout) await logout();
+        navigate("/login");
+      } catch (error) {
+        console.error("Chiqishda xatolik:", error);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!cafeId) return;
@@ -187,214 +185,251 @@ export default function StaffList() {
 
   const totalSalaries = staff.reduce((sum, p) => sum + (Number(p.salary) || 0), 0);
 
-  // Barcha modal inputlar uchun umumiy klass — och fon, to'q matn,
-  // yorqin fokus halqasi va yengil soyasi bilan
   const inputClass =
     "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white text-gray-900 placeholder:text-gray-400 shadow-sm transition-all duration-150 focus:outline-none focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/15";
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 gap-2">
-        <RefreshCw className="text-amber-600 w-6 h-6 animate-spin" />
+        <span className="text-amber-600 text-xl animate-spin">⏳</span>
         <p className="text-gray-500 text-sm font-medium">Xodimlar ro'yxati yuklanmoqda...</p>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto bg-[#FDFBF7] min-h-screen pb-24">
-      {/* Sarlavha paneli */}
-      <div className="flex items-center justify-between mb-6 border-b-2 border-[#D4AF37] pb-3">
-        <div className="flex items-center gap-2">
-          <Users className="text-[#8B4513] w-6 h-6" />
-          <h1 className="text-xl font-bold text-[#8B4513]">Xodimlar boshqaruvi</h1>
+    <div className="min-h-screen bg-[#FDFBF7] text-gray-800 w-full flex flex-col font-sans pb-24">
+      {/* TEPANGI PANELI (NAVBAR / HEADER) */}
+      <header className="bg-white border-b border-gray-200 px-4 py-3 sm:px-8 flex justify-between items-center shadow-sm mb-4">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">👑</span>
+          <span className="font-bold text-lg text-gray-900">Control Hub</span>
+          <span className="bg-amber-100 text-amber-700 text-[11px] font-bold px-2 py-0.5 rounded uppercase">
+            Admin
+          </span>
         </div>
-        <button
-          onClick={openAddModal}
-          className="bg-[#B22222] text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-[#8B0000] active:scale-95 transition-all shadow-md shadow-red-900/20 flex items-center gap-1.5"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Xodim qo'shish</span>
-        </button>
-      </div>
 
-      {/* Tablar */}
-      <div className="flex gap-2 mb-6">
-        <button
-          onClick={() => setActiveTab("staff")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-            activeTab === "staff"
-              ? "bg-[#8B4513] text-white shadow-sm"
-              : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" />
-          <span>Xodimlar ro'yxati</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("salary")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-            activeTab === "salary"
-              ? "bg-[#8B4513] text-white shadow-sm"
-              : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-          }`}
-        >
-          <Wallet className="w-3.5 h-3.5" />
-          <span>Oyliklar</span>
-        </button>
-      </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-medium text-gray-500 hidden sm:inline">
+            {currentUser?.email || "Admin"}
+          </span>
 
-      {/* 1-TAB: Xodimlar Ro'yxati */}
-      {activeTab === "staff" && (
-        <>
-          {staff.length === 0 ? (
-            <div className="text-center p-8 bg-white rounded-xl border border-dashed">
-              <p className="text-gray-400 text-sm">Hozircha xodimlar mavjud emas.</p>
+          {/* CHIQISH TUGMASI */}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Chiqish
+          </button>
+        </div>
+      </header>
+
+      {/* ASOSIY KONTENT CONTAINER */}
+      <main className="p-4 sm:p-6 max-w-4xl w-full mx-auto flex-1">
+        {/* Sarlavha paneli */}
+        <div className="flex items-center justify-between mb-6 border-b-2 border-[#D4AF37] pb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">👥</span>
+            <h1 className="text-xl font-bold text-[#8B4513]">Xodimlar boshqaruvi</h1>
+          </div>
+          <button
+            onClick={openAddModal}
+            className="bg-[#B22222] text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-[#8B0000] active:scale-95 transition-all shadow-md shadow-red-900/20 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>➕</span>
+            <span>Xodim qo'shish</span>
+          </button>
+        </div>
+
+        {/* Tablar */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setActiveTab("staff")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "staff"
+                ? "bg-[#8B4513] text-white shadow-sm"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <span>👥</span>
+            <span>Xodimlar ro'yxati</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("salary")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "salary"
+                ? "bg-[#8B4513] text-white shadow-sm"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <span>👛</span>
+            <span>Oyliklar</span>
+          </button>
+        </div>
+
+        {/* 1-TAB: Xodimlar Ro'yxati */}
+        {activeTab === "staff" && (
+          <>
+            {staff.length === 0 ? (
+              <div className="text-center p-8 bg-white rounded-xl border border-dashed">
+                <p className="text-gray-400 text-sm">Hozircha xodimlar mavjud emas.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {staff.map((person) => (
+                  <div
+                    key={person.id}
+                    className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col justify-between transition-all hover:shadow-md"
+                  >
+                    <div>
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <h3 className="font-bold text-gray-800 text-sm">{person.fullName}</h3>
+                          <p className="text-[11px] text-amber-800 font-medium capitalize mt-0.5 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-md inline-block">
+                            {roleLabels[person.role] || person.role}
+                          </p>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                            person.status === "active"
+                              ? "bg-green-50 text-green-700 border border-green-200"
+                              : "bg-red-50 text-red-700 border border-red-200"
+                          }`}
+                        >
+                          {person.status === "active" ? "Faol" : "Nofaol"}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 mt-3 border-t pt-2 border-gray-50 text-xs text-gray-500">
+                        <p className="flex items-center gap-1.5">
+                          <span>✉️</span> {person.email}
+                        </p>
+                        <p className="flex items-center gap-1.5">
+                          <span>📞</span> {person.phone}
+                        </p>
+                        <p className="text-[#B22222] font-extrabold text-sm pt-1">
+                          {Number(person.salary).toLocaleString()} so'm / oy
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-1.5 mt-4 pt-2 border-t border-gray-50">
+                      <button
+                        onClick={() => openEditModal(person)}
+                        className="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 font-medium text-gray-600 transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>✏️</span>
+                        <span>Tahrirlash</span>
+                      </button>
+                      <button
+                        onClick={() => toggleStatus(person)}
+                        className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition flex items-center gap-1 cursor-pointer ${
+                          person.status === "active"
+                            ? "border-amber-200 text-amber-700 hover:bg-amber-50"
+                            : "border-green-200 text-green-700 hover:bg-green-50"
+                        }`}
+                      >
+                        <span>{person.status === "active" ? "🚫" : "✅"}</span>
+                        <span>{person.status === "active" ? "Bloklash" : "Aktivlashtirish"}</span>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(person.id)}
+                        className="text-[11px] px-2.5 py-1 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 font-medium transition ml-auto flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>🗑️</span>
+                        <span>O'chirish</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* 2-TAB: Oylik To'lovlari Kontroli */}
+        {activeTab === "salary" && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 flex items-center gap-3">
+              <div className="p-3 bg-green-50 text-green-600 rounded-xl text-xl">
+                💵
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Jami oylik xarajati</p>
+                <p className="text-xl font-black text-green-600 mt-0.5">
+                  {totalSalaries.toLocaleString()} so'm
+                </p>
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+            <div className="space-y-2.5">
               {staff.map((person) => (
                 <div
                   key={person.id}
-                  className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col justify-between transition-all hover:shadow-md"
+                  className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                 >
                   <div>
-                    <div className="flex justify-between items-start gap-2">
-                      <div>
-                        <h3 className="font-bold text-gray-800 text-sm">{person.fullName}</h3>
-                        <p className="text-[11px] text-amber-800 font-medium capitalize mt-0.5 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-md inline-block">
-                          {roleLabels[person.role] || person.role}
-                        </p>
-                      </div>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                          person.status === "active"
-                            ? "bg-green-50 text-green-700 border border-green-200"
-                            : "bg-red-50 text-red-700 border border-red-200"
-                        }`}
-                      >
-                        {person.status === "active" ? "Faol" : "Nofaol"}
+                    <p className="font-bold text-gray-800 text-sm">{person.fullName}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {roleLabels[person.role] || person.role} •{" "}
+                      <span className="font-semibold text-gray-700">
+                        {Number(person.salary).toLocaleString()} so'm
                       </span>
-                    </div>
-
-                    <div className="space-y-1 mt-3 border-t pt-2 border-gray-50 text-xs text-gray-500">
-                      <p className="flex items-center gap-1.5">
-                        <Mail className="w-3.5 h-3.5 text-gray-400" /> {person.email}
-                      </p>
-                      <p className="flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-gray-400" /> {person.phone}
-                      </p>
-                      <p className="text-[#B22222] font-extrabold text-sm pt-1">
-                        {Number(person.salary).toLocaleString()} so'm / oy
-                      </p>
-                    </div>
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
+                      <span>✅</span>
+                      Oxirgi to'lov:{" "}
+                      <span className="font-medium text-gray-600">
+                        {person.salaryHistory?.length > 0
+                          ? new Date(
+                              person.salaryHistory[person.salaryHistory.length - 1].date
+                            ).toLocaleDateString()
+                          : "To'lanmagan"}
+                      </span>
+                    </p>
                   </div>
-
-                  <div className="flex gap-1.5 mt-4 pt-2 border-t border-gray-50">
-                    <button
-                      onClick={() => openEditModal(person)}
-                      className="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 font-medium text-gray-600 transition flex items-center gap-1"
-                    >
-                      <Edit className="w-3 h-3" />
-                      <span>Tahrirlash</span>
-                    </button>
-                    <button
-                      onClick={() => toggleStatus(person)}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition flex items-center gap-1 ${
-                        person.status === "active"
-                          ? "border-amber-200 text-amber-700 hover:bg-amber-50"
-                          : "border-green-200 text-green-700 hover:bg-green-50"
-                      }`}
-                    >
-                      {person.status === "active" ? (
-                        <UserX className="w-3 h-3" />
-                      ) : (
-                        <UserCheck className="w-3 h-3" />
-                      )}
-                      <span>{person.status === "active" ? "Bloklash" : "Aktivlashtirish"}</span>
-                    </button>
-                    <button
-                      onClick={() => handleDelete(person.id)}
-                      className="text-[11px] px-2.5 py-1 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 font-medium transition ml-auto flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      <span>O'chirish</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => markSalaryPaid(person)}
+                    className="text-xs px-3 py-2 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 transition shadow-sm active:scale-95 cursor-pointer"
+                  >
+                    To'landi deb belgilash
+                  </button>
                 </div>
               ))}
             </div>
-          )}
-        </>
-      )}
-
-      {/* 2-TAB: Oylik To'lovlari Kontroli */}
-      {activeTab === "salary" && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 flex items-center gap-3">
-            <div className="p-3 bg-green-50 text-green-600 rounded-xl">
-              <DollarSign className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Jami oylik xarajati</p>
-              <p className="text-xl font-black text-green-600 mt-0.5">
-                {totalSalaries.toLocaleString()} so'm
-              </p>
-            </div>
           </div>
+        )}
+      </main>
 
-          <div className="space-y-2.5">
-            {staff.map((person) => (
-              <div
-                key={person.id}
-                className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-              >
-                <div>
-                  <p className="font-bold text-gray-800 text-sm">{person.fullName}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {roleLabels[person.role] || person.role} •{" "}
-                    <span className="font-semibold text-gray-700">
-                      {Number(person.salary).toLocaleString()} so'm
-                    </span>
-                  </p>
-                  <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
-                    <CheckCircle className="w-3 h-3 text-green-500" />
-                    Oxirgi to'lov:{" "}
-                    <span className="font-medium text-gray-600">
-                      {person.salaryHistory?.length > 0
-                        ? new Date(
-                            person.salaryHistory[person.salaryHistory.length - 1].date
-                          ).toLocaleDateString()
-                        : "To'lanmagan"}
-                    </span>
-                  </p>
-                </div>
-                <button
-                  onClick={() => markSalaryPaid(person)}
-                  className="text-xs px-3 py-2 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 transition shadow-sm active:scale-95"
-                >
-                  To'landi deb belgilash
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Modal Oyna — soyali, yorqin uslub */}
+      {/* Modal Oyna */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white rounded-2xl shadow-2xl shadow-black/30 w-full max-w-md p-5 max-h-[95vh] overflow-y-auto border border-gray-100 animate-[slideDown_0.25s_ease-out]">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl shadow-black/30 w-full max-w-md p-5 max-h-[95vh] overflow-y-auto border border-gray-100">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
               <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
                 {editingStaff ? (
                   <>
-                    <Edit className="w-4 h-4 text-[#8B4513]" />
+                    <span>✏️</span>
                     Xodim ma'lumotlarini tahrirlash
                   </>
                 ) : (
                   <>
-                    <Plus className="w-4 h-4 text-[#8B4513]" />
+                    <span>➕</span>
                     Yangi xodim biriktirish
                   </>
                 )}
@@ -405,9 +440,9 @@ export default function StaffList() {
                   setModalOpen(false);
                   resetForm();
                 }}
-                className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1 transition"
+                className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1 transition cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                ✖
               </button>
             </div>
 
@@ -426,7 +461,7 @@ export default function StaffList() {
 
               <div>
                 <label className="text-xs font-bold text-gray-600 flex items-center gap-1 mb-1">
-                  <Mail className="w-3 h-3 text-gray-400" /> Xodim logini
+                  <span>✉️</span> Xodim logini
                 </label>
                 <div className="relative flex items-center">
                   <input
@@ -438,15 +473,12 @@ export default function StaffList() {
                     className={`${inputClass} pr-24 disabled:bg-gray-100 disabled:text-gray-500 disabled:shadow-none`}
                     placeholder="login kiriting"
                   />
-                  <span className="absolute right-3 text-xs text-gray-400 font-semibold select-none">
-                    
-                  </span>
                 </div>
               </div>
 
               <div>
                 <label className="text-xs font-bold text-gray-600 flex items-center gap-1 mb-1">
-                  <Key className="w-3 h-3 text-gray-400" /> Kirish paroli
+                  <span>🔑</span> Kirish paroli
                 </label>
                 <input
                   type="text"
@@ -461,7 +493,7 @@ export default function StaffList() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs font-bold text-gray-600 flex items-center gap-1 mb-1">
-                    <Briefcase className="w-3 h-3 text-gray-400" /> Lavozimi
+                    <span>💼</span> Lavozimi
                   </label>
                   <select
                     name="role"
@@ -504,7 +536,7 @@ export default function StaffList() {
               <div className="flex gap-2 pt-3 border-t border-gray-100">
                 <button
                   type="submit"
-                  className="flex-1 bg-[#B22222] text-white py-2.5 rounded-xl text-xs font-bold hover:bg-[#8B0000] active:scale-95 transition-all shadow-md shadow-red-900/20"
+                  className="flex-1 bg-[#B22222] text-white py-2.5 rounded-xl text-xs font-bold hover:bg-[#8B0000] active:scale-95 transition-all shadow-md shadow-red-900/20 cursor-pointer"
                 >
                   Saqlash
                 </button>
@@ -514,7 +546,7 @@ export default function StaffList() {
                     setModalOpen(false);
                     resetForm();
                   }}
-                  className="flex-1 border border-gray-200 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-50 text-gray-500 transition active:scale-95"
+                  className="flex-1 border border-gray-200 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-50 text-gray-500 transition active:scale-95 cursor-pointer"
                 >
                   Bekor qilish
                 </button>
