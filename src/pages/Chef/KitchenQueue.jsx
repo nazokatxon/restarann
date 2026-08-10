@@ -1,552 +1,739 @@
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   collection,
-  query,
   onSnapshot,
   updateDoc,
   doc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { getAuth, signOut } from "firebase/auth";
 import { db } from "../../firebase/config.js";
-import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-toastify";
-import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
-const LANGUAGES = [
-  { code: "uz", label: "O'zbekcha", flag: "🇺🇿" },
-  { code: "ru", label: "Русский", flag: "🇷🇺" },
-  { code: "en", label: "English", flag: "🇬🇧" },
-];
-
-const TEXT = {
-  uz: {
-    kitchen: "Oshxona",
-    orders: "Buyurtmalar",
-    newOrder: "Yangi buyurtma keldi!",
-    newOrderFrom: (table) => `Stol #${table} dan yangi buyurtma`,
-    logout: "Chiqish",
-    orderTime: "Buyurtma vaqti",
-    pending: "Kutilmoqda",
-    preparing: "Tayyorlanmoqda",
-    ready: "Tayyor",
-    delivered: "Yetkazildi",
-    noOrders: "Hozircha faol buyurtmalar yo'q",
-    autoAppear:
-      "Yangi buyurtma tushganda avtomatik ravishda shu yerda paydo bo'ladi.",
-    activateAudio:
-      "Ovoz signalini yoqish uchun ekranga bir marta bosing",
-    allDone: "Barcha taomlar yetkazildi",
-    portion: "porsiya",
-    note: "Izoh",
-    new: "Yangi",
-    min: "min",
-    confirmLogout: "Tizimdan chiqishni tasdiqlaysizmi?",
-    cancel: "Bekor qilish",
-  },
-
-  ru: {
-    kitchen: "Кухня",
-    orders: "Заказы",
-    newOrder: "Новый заказ!",
-    newOrderFrom: (table) => `Новый заказ со стола #${table}`,
-    logout: "Выйти",
-    orderTime: "Время заказа",
-    pending: "Ожидает",
-    preparing: "Готовится",
-    ready: "Готово",
-    delivered: "Доставлено",
-    noOrders: "Активных заказов пока нет",
-    autoAppear: "Новый заказ появится здесь автоматически.",
-    activateAudio:
-      "Нажмите на экран один раз, чтобы включить звуковой сигнал",
-    allDone: "Все блюда доставлены",
-    portion: "порция",
-    note: "Комментарий",
-    new: "Новый",
-    min: "мин",
-    confirmLogout: "Вы уверены, что хотите выйти?",
-    cancel: "Отмена",
-  },
-
-  en: {
-    kitchen: "Kitchen",
-    orders: "Orders",
-    newOrder: "New order received!",
-    newOrderFrom: (table) => `New order from table #${table}`,
-    logout: "Log out",
-    orderTime: "Order time",
-    pending: "Waiting",
-    preparing: "Preparing",
-    ready: "Ready",
-    delivered: "Delivered",
-    noOrders: "No active orders yet",
-    autoAppear: "A new order will appear here automatically.",
-    activateAudio: "Click the screen once to enable the sound alert",
-    allDone: "All dishes delivered",
-    portion: "portion",
-    note: "Note",
-    new: "New",
-    min: "min",
-    confirmLogout: "Are you sure you want to log out?",
-    cancel: "Cancel",
-  },
-};
-
-export default function KitchenQueue() {
-  const { t, i18n } = useTranslation();
-  const { cafeId } = useAuth();
+const KitchenQueue = () => {
+  const navigate = useNavigate();
+  const auth = getAuth();
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [languageOpen, setLanguageOpen] = useState(false);
-  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
-
   const [language, setLanguage] = useState(
-    () => localStorage.getItem("appLang") || "uz"
+    localStorage.getItem("appLang") || "uz"
   );
-
-  const kitchenAudioCtxRef = useRef(null);
+  const [languageOpen, setLanguageOpen] = useState(false);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
-  const isInitialLoad = useRef(true);
-  const [, setTick] = useState(0);
 
-  const tr = TEXT[language] || TEXT.uz;
+  // 🚪 CHIQISH MODAL OYNASI STATE'I
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const changeLanguage = (code) => {
-    setLanguage(code);
-    localStorage.setItem("appLang", code);
-    i18n.changeLanguage(code);
-    setLanguageOpen(false);
-  };
+  const audioContextRef = useRef(null);
+  const previousOrderIdsRef = useRef([]);
 
-  const playKitchenVibeSound = async () => {
+  // 🔊 AUDIO
+  const playKitchenSound = async () => {
     try {
-      if (!kitchenAudioCtxRef.current) {
-        const AudioContext =
-          window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) {
-          kitchenAudioCtxRef.current = new AudioContext();
-        }
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (
+          window.AudioContext || window.webkitAudioContext
+        )();
       }
+      const ctx = audioContextRef.current;
+      if (ctx.state === "suspended") await ctx.resume();
 
-      const ctx = kitchenAudioCtxRef.current;
-      if (!ctx) return;
-
-      if (ctx.state === "suspended") {
-        await ctx.resume();
-      }
+      const playBeep = (startTime, frequency, duration) => {
+        const oscillator = ctx.createOscillator();
+        const gain = ctx.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(frequency, startTime);
+        gain.gain.setValueAtTime(0.0001, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.45, startTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+        oscillator.connect(gain);
+        gain.connect(ctx.destination);
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration);
+      };
 
       const now = ctx.currentTime;
-      [660, 880, 660, 990].forEach((frequency, i) => {
-        const start = now + i * 0.18;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
+      playBeep(now, 880, 0.25);
+      playBeep(now + 0.3, 988, 0.25);
+      playBeep(now + 0.6, 1174, 0.35);
 
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(frequency, start);
-        gain.gain.setValueAtTime(0, start);
-        gain.gain.linearRampToValueAtTime(0.32, start + 0.025);
-        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.17);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start(start);
-        osc.stop(start + 0.18);
-      });
-    } catch (e) {
-      console.log("Audio error:", e);
+      setAudioUnlocked(true);
+    } catch (error) {
+      console.log("Audio error:", error);
     }
   };
 
-  useEffect(() => {
-    const unlockKitchenAudio = () => {
-      if (!kitchenAudioCtxRef.current) {
-        const AudioContext =
-          window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) {
-          kitchenAudioCtxRef.current = new AudioContext();
-        }
+  const unlockAudio = async () => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (
+          window.AudioContext || window.webkitAudioContext
+        )();
       }
-
-      if (kitchenAudioCtxRef.current?.state === "suspended") {
-        kitchenAudioCtxRef.current
-          .resume()
-          .then(() => setAudioUnlocked(true));
-      } else {
-        setAudioUnlocked(true);
+      if (audioContextRef.current.state === "suspended") {
+        await audioContextRef.current.resume();
       }
-    };
+      setAudioUnlocked(true);
+    } catch (error) {
+      console.log(error);
+    }
+  };
 
-    window.addEventListener("click", unlockKitchenAudio);
-    window.addEventListener("touchstart", unlockKitchenAudio);
+  // 🌍 TEXTS
+  const TEXT = {
+    uz: {
+      title: "Buyurtmalar",
+      subtitle: "Karavan Kafe — KDS Queue",
+      waiting: "Kutilmoqda",
+      preparing: "Tayyorlanmoqda",
+      total: "Jami",
+      empty: "Hozircha faol buyurtmalar yo‘q",
+      emptyText: "Yangi buyurtma tushganda avtomatik paydo bo‘ladi.",
+      table: "Stol",
+      logout: "Chiqish",
+      logoutConfirmTitle: "Tizimdan chiqmoqchimisiz?",
+      logoutConfirmText: "Rostdan ham tizimdan chiqishni xohlaysizmi?",
+      yes: "Ha",
+      no: "Yo'q",
+      sound: "Ovozni yoqish",
+      newOrder: "Yangi buyurtma!",
+      readyBtn: "Tayyor",
+      allReadyBtn: "✓ Barchasi tayyor",
+    },
+    ru: {
+      title: "Заказы",
+      subtitle: "Karavan Kafe — KDS Queue",
+      waiting: "Ожидает",
+      preparing: "Готовится",
+      total: "Всего",
+      empty: "Активных заказов пока нет",
+      emptyText: "Новые заказы появятся автоматически.",
+      table: "Стол",
+      logout: "Выйти",
+      logoutConfirmTitle: "Выйти из системы?",
+      logoutConfirmText: "Вы действительно хотите выйти?",
+      yes: "Да",
+      no: "Нет",
+      sound: "Включить звук",
+      newOrder: "Новый заказ!",
+      readyBtn: "Готово",
+      allReadyBtn: "✓ Всё готово",
+    },
+    en: {
+      title: "Orders",
+      subtitle: "Karavan Kafe — KDS Queue",
+      waiting: "Waiting",
+      preparing: "Preparing",
+      total: "Total",
+      empty: "No active orders",
+      emptyText: "New orders will appear automatically.",
+      table: "Table",
+      logout: "Logout",
+      logoutConfirmTitle: "Logout of system?",
+      logoutConfirmText: "Are you sure you want to log out?",
+      yes: "Yes",
+      no: "No",
+      sound: "Enable sound",
+      newOrder: "New order!",
+      readyBtn: "Done",
+      allReadyBtn: "✓ All Ready",
+    },
+  };
 
-    return () => {
-      window.removeEventListener("click", unlockKitchenAudio);
-      window.removeEventListener("touchstart", unlockKitchenAudio);
-    };
-  }, []);
+  const t = TEXT[language] || TEXT.uz;
 
+  // 🔥 FIRESTORE REALTIME LISTEN
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTick((prev) => prev + 1);
-    }, 10000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // =========================
-  // FIREBASE BUYURTMALAR (where filtrisiz)
-  // =========================
-  useEffect(() => {
-    const currentText = TEXT[language] || TEXT.uz;
-    const q = query(collection(db, "orders"));
+    setLoading(true);
+    const ordersRef = collection(db, "orders");
 
     const unsubscribe = onSnapshot(
-      q,
+      ordersRef,
       (snapshot) => {
-        const allDocs = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        }));
+        try {
+          const allOrders = snapshot.docs.map((item) => ({
+            id: item.id,
+            ...item.data(),
+          }));
 
-        // Barcha faol buyurtmalarni olamiz (tayyor bo'lmagan va yetkazib berilmaganlar)
-        const activeOrders = allDocs.filter((o) => {
-          if (cafeId && o.cafeId && o.cafeId !== cafeId) return false;
-          return o.kitchenStatus !== "delivered" && o.kitchenStatus !== "completed";
-        });
+          const kitchenOrders = allOrders.filter((order) => {
+            const rawItems = Array.isArray(order.kitchenItems)
+              ? order.kitchenItems
+              : Array.isArray(order.items)
+              ? order.items
+              : [];
 
-        activeOrders.sort((a, b) => {
-          const ad = a.createdAt?.toDate
-            ? a.createdAt.toDate()
-            : new Date(a.createdAt || 0);
-          const bd = b.createdAt?.toDate
-            ? b.createdAt.toDate()
-            : new Date(b.createdAt || 0);
-          return ad - bd;
-        });
+            const pendingItems = rawItems.filter((i) => !i.isReady);
 
-        if (!isInitialLoad.current) {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-              const newOrder = change.doc.data();
-              toast.info(
-                `🔔 ${currentText.newOrderFrom(
-                  newOrder.tableNumber || "-"
-                )}`,
-                { position: "top-right", autoClose: 5000 }
-              );
-              playKitchenVibeSound();
+            if (pendingItems.length === 0) return false;
+
+            const kitchenStatus = String(
+              order.kitchenStatus || ""
+            ).toLowerCase();
+            const status = String(order.status || "").toLowerCase();
+
+            if (
+              kitchenStatus === "delivered" ||
+              status === "delivered"
+            ) {
+              return false;
             }
-          });
-        } else {
-          isInitialLoad.current = false;
-        }
 
-        setOrders(activeOrders);
-        setLoading(false);
+            return true;
+          });
+
+          kitchenOrders.sort((a, b) => {
+            const getTime = (o) => {
+              if (o.createdAt?.seconds) return o.createdAt.seconds * 1000;
+              if (o.createdAt?.toDate) return o.createdAt.toDate().getTime();
+              if (typeof o.createdAt === "number") return o.createdAt;
+              return 0;
+            };
+            return getTime(a) - getTime(b);
+          });
+
+          const currentIds = kitchenOrders.map((o) => o.id);
+          if (
+            previousOrderIdsRef.current.length > 0 &&
+            kitchenOrders.some((o) => !previousOrderIdsRef.current.includes(o.id))
+          ) {
+            toast.info(`🔔 ${t.newOrder}`, { autoClose: 4000 });
+            if (audioUnlocked) playKitchenSound();
+          }
+
+          previousOrderIdsRef.current = currentIds;
+          setOrders(kitchenOrders);
+          setLoading(false);
+        } catch (error) {
+          console.error("Xatolik:", error);
+          setLoading(false);
+        }
       },
       (error) => {
-        console.error("Order fetch error:", error);
+        console.error("Firestore listener error:", error);
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [cafeId, language]);
+  }, [audioUnlocked, language]);
 
-  const updateItemStatus = async (order, itemIndex, status) => {
+  // 🍲 BIRDONA TAOM TAYYOR BO'LGANDA UNI YO'QOTISH
+  const handleItemReadyToggle = async (order, itemIndex) => {
     try {
-      const statuses = (order.items || []).map((_, index) => {
-        if (order.itemStatuses?.[index]) {
-          return order.itemStatuses[index];
-        }
-        return order.kitchenStatus === "preparing" ? "preparing" : "pending";
-      });
+      const rawItems = Array.isArray(order.kitchenItems)
+        ? order.kitchenItems
+        : Array.isArray(order.items)
+        ? order.items
+        : [];
 
-      statuses[itemIndex] = status;
+      const updatedItems = [...rawItems];
+      updatedItems[itemIndex] = {
+        ...updatedItems[itemIndex],
+        isReady: true,
+      };
 
-      const allDelivered =
-        statuses.length > 0 &&
-        statuses.every((itemStatus) => itemStatus === "delivered" || itemStatus === "ready");
+      const remainingItems = updatedItems.filter((item) => !item.isReady);
+      const isAllDone = remainingItems.length === 0;
 
-      await updateDoc(doc(db, "orders", order.id), {
-        itemStatuses: statuses,
-        kitchenStatus: allDelivered ? "ready" : "preparing",
-        ...(status === "ready" ? { readyAt: new Date() } : {}),
-      });
+      const updatePayload = {
+        kitchenStatus: isAllDone ? "ready" : "preparing",
+        updatedAt: serverTimestamp(),
+      };
+
+      if (Array.isArray(order.kitchenItems)) {
+        updatePayload.kitchenItems = updatedItems;
+      } else {
+        updatePayload.items = updatedItems;
+      }
+
+      await updateDoc(doc(db, "orders", order.id), updatePayload);
     } catch (error) {
-      console.error("Item status error:", error);
-      toast.error("Taom holatini o'zgartirib bo'lmadi");
+      console.error("Tugma bosishda xatolik:", error);
+      toast.error("Xatolik yuz berdi!");
     }
   };
 
-  const handleLogout = async () => {
+  // ✅ BARCHASI TAYYOR TUGMASI
+  const handleAllItemsReady = async (order) => {
     try {
-      await signOut(getAuth());
-      window.location.href = "/login";
+      const rawItems = Array.isArray(order.kitchenItems)
+        ? order.kitchenItems
+        : Array.isArray(order.items)
+        ? order.items
+        : [];
+
+      const updatedItems = rawItems.map((item) => ({
+        ...item,
+        isReady: true,
+      }));
+
+      const updatePayload = {
+        kitchenStatus: "ready",
+        status: "ready",
+        updatedAt: serverTimestamp(),
+      };
+
+      if (Array.isArray(order.kitchenItems)) {
+        updatePayload.kitchenItems = updatedItems;
+      } else {
+        updatePayload.items = updatedItems;
+      }
+
+      await updateDoc(doc(db, "orders", order.id), updatePayload);
+      toast.success(`Stol ${order.tableNumber ?? order.table ?? ""} tayyor!`);
     } catch (error) {
-      console.error("Logout error:", error);
-      toast.error("Chiqishda xatolik yuz berdi");
+      console.error("Barchasi tayyor tugmasida xatolik:", error);
+      toast.error("Xatolik yuz berdi!");
     }
   };
 
-  const getElapsedMinutes = (createdAt) => {
-    const created = createdAt?.toDate
-      ? createdAt.toDate()
-      : new Date(createdAt || 0);
-    return Math.max(0, Math.floor((new Date() - created) / 60000));
-  };
-
-  const formatTime = (date) => {
-    const d = date?.toDate ? date.toDate() : new Date(date || 0);
-    return d.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const getItemStatus = (order, index) => {
-    if (order.itemStatuses?.[index]) {
-      return order.itemStatuses[index];
+  // 🚪 CHIQISH HAQIDA ANIQ CHIQADIGAN MANTIQ
+  const confirmLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate("/login");
+    } catch (error) {
+      toast.error("Chiqishda xatolik!");
     }
-    return order.kitchenStatus === "preparing" ? "preparing" : "pending";
   };
 
-  const pendingCount = orders.filter((o) => o.kitchenStatus === "pending").length;
-  const preparingCount = orders.filter((o) => o.kitchenStatus === "preparing").length;
+  const changeLanguage = (lang) => {
+    setLanguage(lang);
+    localStorage.setItem("appLang", lang);
+    setLanguageOpen(false);
+  };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f7f5ef]">
-        <div className="text-center">
-          <div className="w-14 h-14 mx-auto rounded-[18px] bg-[#e9eee3] border border-[#d8e1d0] flex items-center justify-center text-2xl mb-4">
-            👨‍🍳
-          </div>
-          <div className="w-7 h-7 mx-auto border-[3px] border-[#c87952] border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#7d766c]">
-            {t("loading", "Yuklanmoqda...")}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const formatTime = (order) => {
+    try {
+      if (order.createdAt?.toDate) {
+        return order.createdAt.toDate().toLocaleTimeString("uz-UZ", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+      if (order.createdAt?.seconds) {
+        return new Date(order.createdAt.seconds * 1000).toLocaleTimeString("uz-UZ", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+      return "";
+    } catch {
+      return "";
+    }
+  };
+
+  const waitingCount = orders.filter(
+    (o) => (o.kitchenStatus || "pending") === "pending"
+  ).length;
+  const preparingCount = orders.filter(
+    (o) => o.kitchenStatus === "preparing"
+  ).length;
 
   return (
-    <div className="min-h-screen bg-[#f7f5ef] relative overflow-x-hidden p-4">
-      {/* DEKOR */}
-      <div className="fixed -top-24 -right-24 w-72 h-72 rounded-full bg-[#e5eadf] opacity-60 blur-3xl pointer-events-none" />
-      <div className="fixed -bottom-32 -left-24 w-80 h-80 rounded-full bg-[#f0d9c8] opacity-50 blur-3xl pointer-events-none" />
-
-      <div className="max-w-6xl mx-auto relative z-10">
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f4f1ea",
+        padding: "20px",
+        color: "#30352d",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+      }}
+    >
+      <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
         {/* HEADER */}
-        <header className="relative bg-[#fffdf8] border border-[#e8dfd2] rounded-[28px] px-5 sm:px-7 py-4 shadow-[0_12px_40px_rgba(92,72,48,0.07)] mb-6">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="relative w-12 h-12 rounded-[17px] bg-[#e9eee3] border border-[#d8e1d0] flex items-center justify-center text-xl shadow-sm">
-                👨‍🍳
-                <span className="absolute -right-1 -bottom-1 w-4 h-4 rounded-full bg-[#c87952] border-[3px] border-[#fffdf8]" />
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #e2dad0",
+            borderRadius: "20px",
+            padding: "16px 24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "20px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "28px" }}>👨‍🍳</span>
+            <div>
+              <div style={{ fontSize: "20px", fontWeight: 900 }}>
+                KARAVAN • KAFE
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg sm:text-xl font-black tracking-tight text-[#30352d]">
-                    KARAVAN
-                  </h2>
-                  <span className="text-[#c87952] text-lg">•</span>
-                  <h2 className="text-lg sm:text-xl font-black tracking-tight text-[#30352d]">
-                    KAFE
-                  </h2>
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="w-5 h-[2px] bg-[#c87952] rounded-full" />
-                  <span className="text-[8px] font-black uppercase tracking-[0.22em] text-[#8a8378]">
-                    KDS System
-                  </span>
-                </div>
+              <div style={{ fontSize: "11px", color: "#8d8a80", fontWeight: 800 }}>
+                KDS SYSTEM
               </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setLanguageOpen((v) => !v)}
-                  className="h-11 px-3 sm:px-4 rounded-[15px] border border-[#dedfd5] bg-[#f5f7f1] hover:bg-[#eaf0e4] text-[#4e5948] flex items-center gap-2 text-xs font-black cursor-pointer transition-all"
-                >
-                  <span className="w-6 h-6 rounded-lg bg-white border border-[#e1e5dc] flex items-center justify-center text-sm">
-                    🌐
-                  </span>
-                  <span className="hidden sm:block">
-                    {LANGUAGES.find((item) => item.code === language)?.label}
-                  </span>
-                </button>
-
-                {languageOpen && (
-                  <div className="absolute right-0 top-14 z-50 w-44 bg-[#fffdf8] border border-[#e4ddd2] rounded-[18px] shadow-lg p-2">
-                    {LANGUAGES.map((item) => (
-                      <button
-                        key={item.code}
-                        type="button"
-                        onClick={() => changeLanguage(item.code)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-black cursor-pointer ${
-                          language === item.code
-                            ? "bg-[#e9eee3] text-[#53604c]"
-                            : "text-[#69665f] hover:bg-[#f5f1e9]"
-                        }`}
-                      >
-                        <span className="text-base">{item.flag}</span>
-                        <span>{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setLogoutModalOpen(true)}
-                className="h-11 px-3 sm:px-4 rounded-[15px] bg-[#fff3ee] border border-[#edc9ba] text-[#b85f3d] flex items-center gap-2 text-xs font-black cursor-pointer"
-              >
-                {tr.logout}
-              </button>
             </div>
           </div>
-        </header>
+
+          <div style={{ display: "flex", gap: "10px", position: "relative" }}>
+            <button
+              onClick={() => setLanguageOpen(!languageOpen)}
+              style={{
+                border: "1px solid #ddd",
+                background: "#f9f9f9",
+                borderRadius: "10px",
+                padding: "8px 14px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              🌐 {language.toUpperCase()}
+            </button>
+            {languageOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  right: "90px",
+                  top: "45px",
+                  background: "#fff",
+                  border: "1px solid #ccc",
+                  borderRadius: "10px",
+                  padding: "5px",
+                  zIndex: 10,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                }}
+              >
+                <div onClick={() => changeLanguage("uz")} style={{ padding: "8px", cursor: "pointer" }}>🇺🇿 O'zbekcha</div>
+                <div onClick={() => changeLanguage("ru")} style={{ padding: "8px", cursor: "pointer" }}>🇷🇺 Русский</div>
+                <div onClick={() => changeLanguage("en")} style={{ padding: "8px", cursor: "pointer" }}>🇬🇧 English</div>
+              </div>
+            )}
+
+            {/* CHIQISH TUGMASI (MODAL OYNASINI OCHADI) */}
+            <button
+              onClick={() => setShowLogoutModal(true)}
+              style={{
+                border: "1px solid #f2c2b8",
+                background: "#fff0ed",
+                color: "#c0392b",
+                borderRadius: "10px",
+                padding: "8px 14px",
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
+              {t.logout}
+            </button>
+          </div>
+        </div>
+
+        {/* STATS */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "20px",
+          }}
+        >
+          <div>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 900 }}>
+              {t.title}
+            </h1>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px" }}>
+            <span style={{ background: "#fff3cd", padding: "6px 12px", borderRadius: "8px", fontWeight: 800, color: "#856404" }}>
+              {t.waiting}: {waitingCount}
+            </span>
+            <span style={{ background: "#d4edda", padding: "6px 12px", borderRadius: "8px", fontWeight: 800, color: "#155724" }}>
+              {t.preparing}: {preparingCount}
+            </span>
+            <span style={{ background: "#e2e3e5", padding: "6px 12px", borderRadius: "8px", fontWeight: 800, color: "#383d41" }}>
+              {t.total}: {orders.length}
+            </span>
+          </div>
+        </div>
 
         {!audioUnlocked && (
           <button
-            type="button"
-            onClick={playKitchenVibeSound}
-            className="mx-auto mb-5 flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#fff8e9] border border-[#ead9b8] text-[#a86d35] text-[10px] font-black cursor-pointer"
+            onClick={() => {
+              unlockAudio();
+              playKitchenSound();
+            }}
+            style={{
+              width: "100%",
+              marginBottom: "15px",
+              padding: "10px",
+              borderRadius: "10px",
+              border: "1px solid #ffebaba",
+              background: "#fff8e7",
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
           >
-            🔊 {tr.activateAudio}
+            🔊 {t.sound}
           </button>
         )}
 
-        {/* SARLAVHA */}
-        <section className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-black text-[#30352d]">{tr.orders}</h1>
-            <p className="text-xs text-[#8a8378]">Karavan Kafe — KDS Queue</p>
+        {/* BUYURTMALAR GRID */}
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "40px" }}>
+            ⏳ Yuklanmoqda...
           </div>
-
-          <div className="flex items-center gap-2">
-            <div className="px-4 py-2 rounded-[15px] bg-[#fff7e8] border border-[#ecdfc5]">
-              <span className="text-[10px] text-[#a78a58] font-bold">{tr.pending}: </span>
-              <span className="font-black text-[#b87725]">{pendingCount}</span>
-            </div>
-            <div className="px-4 py-2 rounded-[15px] bg-[#edf3e9] border border-[#d8e3d2]">
-              <span className="text-[10px] text-[#75826d] font-bold">{tr.preparing}: </span>
-              <span className="font-black text-[#61725a]">{preparingCount}</span>
-            </div>
-          </div>
-        </section>
-
-        {/* BUYURTMALAR RO'YXATI */}
-        {orders.length === 0 ? (
-          <div className="bg-[#fffdf8] border border-[#e7dfd2] rounded-[28px] py-20 text-center shadow-sm">
-            <div className="w-16 h-16 mx-auto rounded-[21px] bg-[#f5f1e8] border border-[#e4dbce] flex items-center justify-center text-2xl mb-4">
-              🍽️
-            </div>
-            <h3 className="text-lg font-black text-[#363a32]">{tr.noOrders}</h3>
-            <p className="text-xs text-[#a29a8f] mt-1">{tr.autoAppear}</p>
+        ) : orders.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "50px",
+              background: "#fff",
+              borderRadius: "16px",
+            }}
+          >
+            <h3>{t.empty}</h3>
+            <p style={{ color: "#888" }}>{t.emptyText}</p>
           </div>
         ) : (
-          <main className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+              gap: "16px",
+            }}
+          >
             {orders.map((order) => {
-              const elapsed = getElapsedMinutes(order.createdAt);
-              const isUrgent = elapsed >= 15;
+              const rawItems = Array.isArray(order.kitchenItems)
+                ? order.kitchenItems
+                : Array.isArray(order.items)
+                ? order.items
+                : [];
+
+              const activeItems = rawItems
+                .map((item, originalIndex) => ({ ...item, originalIndex }))
+                .filter((item) => !item.isReady);
 
               return (
-                <article
+                <div
                   key={order.id}
-                  className={`bg-[#fffdf8] rounded-[24px] border p-5 shadow-sm transition-all ${
-                    isUrgent ? "border-red-300 bg-red-50/20" : "border-[#e6ded3]"
-                  }`}
+                  style={{
+                    border: "1px solid #e0d8cc",
+                    borderRadius: "16px",
+                    background: "#fff",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
                 >
-                  <div className="flex justify-between items-center mb-4 pb-3 border-b border-[#eee7dc]">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl font-black text-[#c87952]">
-                        Stol #{order.tableNumber || "-"}
-                      </span>
-                      <span className="text-[11px] font-bold text-[#9b9489]">
-                        {formatTime(order.createdAt)}
-                      </span>
+                  {/* CARD HEADER */}
+                  <div
+                    style={{
+                      padding: "14px",
+                      background: "#FAF7EE",
+                      borderBottom: "1px solid #eee",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: "18px", fontWeight: 900 }}>
+                        🪑 {t.table} {order.tableNumber ?? order.table ?? "—"}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#888" }}>
+                        {formatTime(order)}
+                      </div>
                     </div>
-                    <span className="text-xs font-bold text-[#b85f3d]">
-                      {elapsed} {tr.min}
-                    </span>
                   </div>
 
-                  <div className="space-y-3">
-                    {(order.items || []).map((item, idx) => {
-                      const itemStatus = getItemStatus(order, idx);
+                  {/* TAOMLAR RO'YXATI */}
+                  <div style={{ padding: "14px", flex: 1 }}>
+                    {activeItems.map((item, idx) => {
+                      const itemName =
+                        item.name || item.title || item.foodName || "Taom";
+                      const quantity = item.quantity || item.qty || 1;
 
                       return (
                         <div
                           key={idx}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-[#f8f6f0] rounded-xl border border-[#e8e2d5]"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "10px 0",
+                            borderBottom:
+                              idx !== activeItems.length - 1
+                                ? "1px solid #f0f0f0"
+                                : "none",
+                          }}
                         >
                           <div>
-                            <div className="font-bold text-sm text-[#3d4139]">
-                              {item.name}
-                            </div>
-                            <div className="text-xs text-[#8a8378]">
-                              x{item.quantity} {tr.portion}
+                            <div
+                              style={{
+                                fontWeight: 800,
+                                fontSize: "15px",
+                                color: "#333",
+                              }}
+                            >
+                              {itemName}{" "}
+                              <span
+                                style={{
+                                  background: "#eee",
+                                  padding: "2px 6px",
+                                  borderRadius: "6px",
+                                  fontSize: "12px",
+                                  marginLeft: "4px",
+                                }}
+                              >
+                                x{quantity}
+                              </span>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1">
-                            {["preparing", "ready"].map((st) => (
-                              <button
-                                key={st}
-                                onClick={() => updateItemStatus(order, idx, st)}
-                                className={`px-2.5 py-1 rounded-lg text-[10px] font-black cursor-pointer transition ${
-                                  itemStatus === st
-                                    ? st === "ready"
-                                      ? "bg-green-600 text-white"
-                                      : "bg-amber-500 text-white"
-                                    : "bg-white text-slate-600 border border-slate-200"
-                                }`}
-                              >
-                                {st === "preparing" ? tr.preparing : tr.ready}
-                              </button>
-                            ))}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleItemReadyToggle(order, item.originalIndex)
+                            }
+                            style={{
+                              border: "none",
+                              background: "#27ae60",
+                              color: "#fff",
+                              borderRadius: "8px",
+                              padding: "8px 14px",
+                              fontWeight: 900,
+                              fontSize: "13px",
+                              cursor: "pointer",
+                              transition: "0.2s",
+                            }}
+                          >
+                            ✓ Tayyor
+                          </button>
                         </div>
                       );
                     })}
+
+                    {order.note && (
+                      <div
+                        style={{
+                          marginTop: "10px",
+                          padding: "8px",
+                          background: "#fff9e6",
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          color: "#666",
+                        }}
+                      >
+                        📝 {order.note}
+                      </div>
+                    )}
                   </div>
-                </article>
+
+                  <div
+                    style={{
+                      padding: "12px 14px",
+                      background: "#fcfcfc",
+                      borderTop: "1px solid #f0f0f0",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleAllItemsReady(order)}
+                      style={{
+                        width: "100%",
+                        border: "none",
+                        background: "#2e7d32",
+                        color: "#fff",
+                        borderRadius: "10px",
+                        padding: "12px",
+                        fontWeight: 900,
+                        fontSize: "14px",
+                        cursor: "pointer",
+                        boxShadow: "0 4px 10px rgba(46, 125, 50, 0.2)",
+                      }}
+                    >
+                      {t.allReadyBtn}
+                    </button>
+                  </div>
+                </div>
               );
             })}
-          </main>
+          </div>
         )}
-      </div>
 
-      {/* CHIQISH MODALI */}
-      {logoutModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center shadow-xl">
-            <h3 className="text-base font-bold text-slate-800 mb-2">
-              {tr.confirmLogout}
-            </h3>
-            <div className="flex gap-3 mt-5">
-              <button
-                onClick={() => setLogoutModalOpen(false)}
-                className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs"
-              >
-                {tr.cancel}
-              </button>
-              <button
-                onClick={handleLogout}
-                className="flex-1 py-2 rounded-xl bg-red-600 text-white font-bold text-xs"
-              >
-                {tr.logout}
-              </button>
+        {/* 🚪 CHIQISH UCHUN HA / YO'Q MODAL OYNASI */}
+        {showLogoutModal && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              background: "rgba(0, 0, 0, 0.4)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+              backdropFilter: "blur(2px)",
+            }}
+            onClick={() => setShowLogoutModal(false)}
+          >
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: "16px",
+                padding: "24px",
+                maxWidth: "360px",
+                width: "90%",
+                boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+                textAlign: "center",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ fontSize: "36px", marginBottom: "10px" }}>🚪</div>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: 800 }}>
+                {t.logoutConfirmTitle}
+              </h3>
+              <p style={{ margin: "0 0 20px 0", color: "#666", fontSize: "14px" }}>
+                {t.logoutConfirmText}
+              </p>
+
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  type="button"
+                  onClick={confirmLogout}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: "#c0392b",
+                    color: "#fff",
+                    fontWeight: 800,
+                    fontSize: "14px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {t.yes}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutModal(false)}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    borderRadius: "10px",
+                    border: "1px solid #ccc",
+                    background: "#f8f8f8",
+                    color: "#333",
+                    fontWeight: 800,
+                    fontSize: "14px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {t.no}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
-}
+};
+
+export default KitchenQueue;
