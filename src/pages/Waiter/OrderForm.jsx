@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   collection,
@@ -18,13 +18,13 @@ import { toast } from "react-toastify";
 export default function OrderForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { cafeId, currentUser } = useAuth();
+  const { cafeId, currentUser, logout } = useAuth();
 
   const initialTable = searchParams.get("table") || "1";
   const [tableNumber, setTableNumber] = useState(initialTable);
-  
-  // Avtomatik topiladigan buyurtma ID-si
+
   const [existingOrderId, setExistingOrderId] = useState(null);
+  const [existingOrderItems, setExistingOrderItems] = useState([]);
 
   const [categories, setCategories] = useState(["Barchasi"]);
   const [selectedCategory, setSelectedCategory] = useState("Barchasi");
@@ -35,9 +35,92 @@ export default function OrderForm() {
   const [submitting, setSubmitting] = useState(false);
 
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
+  const [isSoundOn, setIsSoundOn] = useState(true);
+
+  const audioContextRef = useRef(null);
+
+  // 🔊 OVOZ CHIQARISH
+  const playReadySound = async () => {
+    if (!isSoundOn) return;
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      if (ctx.state === "suspended") {
+        await ctx.resume();
+      }
+      const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+      audio.volume = 1.0;
+      await audio.play();
+    } catch (e) {
+      console.log("Audio play error:", e);
+    }
+  };
 
   // =========================================================
-  // 1. SHU STOLDA MAVJUD BUYURTMANI AVTOMATIK QIDIRIB YUKLASH
+  // 🔔 BIRIN-KETIN CHIQIB YO'QOLADIGAN BILDIRISHNOMA
+  // =========================================================
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioContextRef.current.state === "suspended") {
+        audioContextRef.current.resume();
+      }
+    };
+
+    window.addEventListener("click", unlockAudio);
+    window.addEventListener("touchstart", unlockAudio);
+
+    if ("Notification" in window && Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
+
+    const ordersRef = collection(db, "orders");
+    const q = query(
+      ordersRef,
+      where("tableNumber", "==", Number(tableNumber)),
+      where("kitchenStatus", "==", "ready")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "modified") {
+          const orderData = change.doc.data();
+
+          playReadySound();
+
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification(`🔔 Stol №${orderData.tableNumber} taomi tayyor!`, {
+              body: "Oshxonadan taomni olib ketishingiz mumkin.",
+              icon: "/favicon.ico",
+              vibrate: [200, 100, 200],
+            });
+          }
+
+          toast.dismiss();
+          toast.success(`🔔 Stol №${orderData.tableNumber} taomi tayyor!`, {
+            toastId: `ready-${change.doc.id}`,
+            autoClose: 2000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: false,
+          });
+        }
+      });
+    });
+
+    return () => {
+      window.removeEventListener("click", unlockAudio);
+      window.removeEventListener("touchstart", unlockAudio);
+      unsubscribe();
+    };
+  }, [tableNumber, isSoundOn]);
+
+  // =========================================================
+  // 1. SHU STOLDA MAVJUD BUYURTMANI AVTOMATIK QIDIRIB OLISH
   // =========================================================
   useEffect(() => {
     if (!tableNumber) return;
@@ -49,17 +132,16 @@ export default function OrderForm() {
           where("tableNumber", "==", Number(tableNumber)),
           where("paymentStatus", "==", "unpaid")
         );
-        
+
         const querySnapshot = await getDocs(q);
-        
+
         if (!querySnapshot.empty) {
           const activeOrderDoc = querySnapshot.docs[0];
           setExistingOrderId(activeOrderDoc.id);
-          
+
           const orderData = activeOrderDoc.data();
           if (orderData.items && Array.isArray(orderData.items)) {
-            // Avvalgi taomlarni savatga joylaymiz (yo'qolmaydi!)
-            setCart(orderData.items);
+            setExistingOrderItems(orderData.items);
           }
         }
       } catch (error) {
@@ -189,65 +271,86 @@ export default function OrderForm() {
     setSubmitting(true);
 
     try {
-      const kitchenItems = cart
-        .filter((item) => !isDrinkCategory(item.category))
-        .map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: Number(item.price || 0),
-          quantity: item.quantity,
-          category: item.category || "",
-          imageUrl: item.imageUrl || "",
-          note: item.note || "",
-        }));
+      let finalAllItems = [...existingOrderItems];
 
-      const waiterItems = cart
-        .filter((item) => isDrinkCategory(item.category))
-        .map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: Number(item.price || 0),
-          quantity: item.quantity,
-          category: item.category || "",
-          imageUrl: item.imageUrl || "",
-          note: item.note || "",
-        }));
+      cart.forEach((cartItem) => {
+        const index = finalAllItems.findIndex((item) => item.id === cartItem.id);
+        if (index > -1) {
+          finalAllItems[index] = {
+            ...finalAllItems[index],
+            quantity: finalAllItems[index].quantity + cartItem.quantity,
+            note: cartItem.note
+              ? finalAllItems[index].note
+                ? `${finalAllItems[index].note}, ${cartItem.note}`
+                : cartItem.note
+              : finalAllItems[index].note,
+          };
+        } else {
+          finalAllItems.push({
+            id: cartItem.id,
+            name: cartItem.name,
+            price: Number(cartItem.price || 0),
+            quantity: cartItem.quantity,
+            category: cartItem.category || "",
+            imageUrl: cartItem.imageUrl || "",
+            note: cartItem.note || "",
+          });
+        }
+      });
 
-      const formattedItems = cart.map((item) => ({
-        id: item.id,
-        name: item.name,
-        price: Number(item.price || 0),
-        quantity: item.quantity,
-        category: item.category || "",
-        imageUrl: item.imageUrl || "",
-        note: item.note || "",
-      }));
+      const finalTotalPrice = finalAllItems.reduce(
+        (sum, item) => sum + Number(item.price || 0) * item.quantity,
+        0
+      );
 
-      // Agar ushbu stolda avvaldan buyurtma bo'lsa -> UPDATE qilamiz
+      const kitchenItems = finalAllItems.filter(
+        (item) => !isDrinkCategory(item.category)
+      );
+
+      const waiterItems = finalAllItems.filter((item) =>
+        isDrinkCategory(item.category)
+      );
+
       if (existingOrderId) {
         const orderRef = doc(db, "orders", existingOrderId);
         await updateDoc(orderRef, {
-          items: formattedItems,
+          items: finalAllItems,
           kitchenItems,
           waiterItems,
-          totalPrice,
+          totalPrice: finalTotalPrice,
           kitchenStatus: kitchenItems.length > 0 ? "pending" : "none",
           updatedAt: serverTimestamp(),
         });
 
-        toast.success("🍲 Buyurtma muvaffaqiyatli yangilandi!");
+        toast.success("🍲 Buyurtmaga yangi taomlar qo'shildi!", { autoClose: 2000 });
       } else {
-        // Yangi stol bo'lsa -> YANGI BUYURTMA ochamiz
+        const formattedCartItems = cart.map((item) => ({
+          id: item.id,
+          name: item.name,
+          price: Number(item.price || 0),
+          quantity: item.quantity,
+          category: item.category || "",
+          imageUrl: item.imageUrl || "",
+          note: item.note || "",
+        }));
+
+        const newKitchenItems = formattedCartItems.filter(
+          (item) => !isDrinkCategory(item.category)
+        );
+        const newWaiterItems = formattedCartItems.filter((item) =>
+          isDrinkCategory(item.category)
+        );
+
         const orderData = {
           cafeId: cafeId || "",
           tableNumber: Number(tableNumber),
-          kitchenItems,
-          waiterItems,
-          items: formattedItems,
+          kitchenItems: newKitchenItems,
+          waiterItems: newWaiterItems,
+          items: formattedCartItems,
           totalPrice,
           paymentStatus: "unpaid",
-          kitchenStatus: kitchenItems.length > 0 ? "pending" : "none",
-          itemStatuses: kitchenItems.map(() => "pending"),
+          kitchenStatus: newKitchenItems.length > 0 ? "pending" : "none",
+          itemStatuses: newKitchenItems.map(() => "pending"),
           createdAt: serverTimestamp(),
           waiterId: currentUser?.uid || "",
           waiterEmail: currentUser?.email || "",
@@ -257,9 +360,10 @@ export default function OrderForm() {
         await addDoc(collection(db, "orders"), orderData);
 
         toast.success(
-          kitchenItems.length > 0
+          newKitchenItems.length > 0
             ? "🍲 Buyurtma oshxonaga yuborildi!"
-            : "🥤 Ichimlik buyurtmasi qabul qilindi!"
+            : "🥤 Ichimlik buyurtmasi qabul qilindi!",
+          { autoClose: 2000 }
         );
       }
 
@@ -289,18 +393,64 @@ export default function OrderForm() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans select-none pb-28 antialiased">
-      {/* HEADER */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 px-4 py-3 flex justify-between items-center shadow-xs">
-        <button
-          onClick={() => navigate("/waiter/tables")}
-          className="flex items-center gap-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition active:scale-95"
-        >
-          ← Stollar
-        </button>
+      {/* 📌 TEPADA FIX / STICKY TURADIGAN HEADER */}
+      <header className="sticky top-0 z-20 bg-white shadow-xs flex flex-col border-b border-slate-200">
+        {/* Tepadagi Panel: Logo, Ovoz va Chiqish */}
+        <div className="px-4 py-3 flex justify-between items-center bg-white border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-11 h-11 bg-amber-100 rounded-2xl flex items-center justify-center text-xl shadow-2xs">
+              🍲
+            </div>
+            <div>
+              <h2 className="font-black text-slate-800 text-sm leading-tight">
+                AJ Cafe
+              </h2>
+              <p className="text-[10px] font-bold text-slate-400">
+                Ofitsiant paneli
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsSoundOn(!isSoundOn)}
+              className={`${
+                isSoundOn
+                  ? "bg-amber-500 hover:bg-amber-600 text-white"
+                  : "bg-slate-200 text-slate-600"
+              } font-extrabold text-xs px-3.5 py-2.5 rounded-2xl shadow-md flex items-center gap-1.5 transition active:scale-95`}
+            >
+              <span>{isSoundOn ? "🔔" : "🔕"}</span>
+              <span>{isSoundOn ? "Ovozni Yoqilgan" : "Ovoz Yoqish"}</span>
+            </button>
+
+            <button
+              onClick={() => (logout ? logout() : navigate("/login"))}
+              className="border border-rose-200 text-rose-500 hover:bg-rose-50 font-bold text-xs px-3.5 py-2.5 rounded-2xl active:scale-95 transition"
+            >
+              Chiqish
+            </button>
+          </div>
+        </div>
+
+        {/* ⬅️ STOLLARGA QAYTISH VA JORIY STOL RAQAMI */}
+        <div className="bg-[#FAF7EE] px-4 py-3 flex justify-between items-center">
+          <button
+            onClick={() => navigate("/waiter/tables")}
+            className="flex items-center gap-2 text-slate-700 hover:text-amber-600 font-extrabold text-sm active:scale-95 transition"
+          >
+            <span>⬅️</span>
+            <span>Stollarga qaytish</span>
+          </button>
+
+          <div className="bg-amber-500 text-white font-black text-xs px-3 py-1.5 rounded-xl shadow-2xs">
+            Stol №{tableNumber}
+          </div>
+        </div>
       </header>
 
-      {/* ASOSIY QISM */}
-      <main className="max-w-md mx-auto sm:max-w-3xl w-full p-3 sm:p-5 flex flex-col gap-3">
+      {/* ASOSIY QISM (MENYU VA TAOMLAR) */}
+      <main className="max-w-md mx-auto sm:max-w-xl w-full p-3 sm:p-5 flex flex-col gap-3">
         {/* QIDIRUV */}
         <div className="relative">
           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
@@ -354,68 +504,48 @@ export default function OrderForm() {
             Taom topilmadi
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="flex flex-col gap-2">
             {filteredItems.map((item) => {
               const qtyInCart = getItemQuantityInCart(item.id);
               return (
                 <div
                   key={item.id}
-                  className={`bg-white rounded-2xl p-2.5 border transition flex flex-col justify-between shadow-2xs relative ${
+                  onClick={() => addToCart(item)}
+                  className={`bg-white rounded-2xl p-2.5 border transition flex items-center justify-between shadow-2xs relative cursor-pointer active:scale-[0.98] ${
                     qtyInCart > 0
                       ? "border-amber-500 bg-amber-500/5 ring-1 ring-amber-500"
                       : "border-slate-200"
                   }`}
                 >
-                  <div>
+                  <div className="flex items-center gap-3 min-w-0 pr-2">
                     {item.imageUrl ? (
                       <img
                         src={item.imageUrl}
                         alt={item.name}
-                        className="w-full h-24 object-cover rounded-xl mb-2"
+                        className="w-14 h-14 object-cover rounded-xl shrink-0"
                       />
                     ) : (
-                      <div className="w-full h-24 bg-slate-100 rounded-xl mb-2 flex items-center justify-center text-2xl">
+                      <div className="w-14 h-14 bg-slate-100 rounded-xl flex items-center justify-center text-xl shrink-0">
                         🍲
                       </div>
                     )}
-                    <h3 className="font-bold text-slate-800 text-xs leading-snug truncate">
-                      {item.name}
-                    </h3>
+
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-slate-800 text-sm leading-snug truncate">
+                        {item.name}
+                      </h3>
+                      <span className="text-xs font-black text-amber-600">
+                        {Number(item.price || 0).toLocaleString()}{" "}
+                        <span className="text-[10px] font-normal">so'm</span>
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs font-black text-amber-600">
-                      {Number(item.price || 0).toLocaleString()}{" "}
-                      <span className="text-[9px] font-normal">so'm</span>
-                    </span>
-
-                    {qtyInCart === 0 ? (
-                      <button
-                        onClick={() => addToCart(item)}
-                        className="w-7 h-7 bg-amber-500 text-white rounded-lg font-bold text-base flex items-center justify-center active:scale-90 transition shadow-xs"
-                      >
-                        +
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-1 bg-amber-500 text-white rounded-lg p-0.5 shadow-xs">
-                        <button
-                          onClick={() => updateQuantity(item.id, -1)}
-                          className="w-5 h-5 flex items-center justify-center font-bold text-xs active:scale-90"
-                        >
-                          -
-                        </button>
-                        <span className="text-xs font-black px-1">
-                          {qtyInCart}
-                        </span>
-                        <button
-                          onClick={() => updateQuantity(item.id, 1)}
-                          className="w-5 h-5 flex items-center justify-center font-bold text-xs active:scale-90"
-                        >
-                          +
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  {qtyInCart > 0 && (
+                    <div className="bg-amber-500 text-white font-extrabold text-xs px-2.5 py-1 rounded-xl shadow-xs shrink-0">
+                      {qtyInCart} ta
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -429,19 +559,20 @@ export default function OrderForm() {
           <div className="bg-slate-900 text-white p-3 rounded-2xl shadow-xl border border-slate-800 flex items-center justify-between">
             <div
               onClick={() => setIsCartModalOpen(true)}
-              className="flex items-center gap-3 cursor-pointer pl-2"
+              className="flex items-center gap-3 cursor-pointer pl-2 overflow-hidden pr-2"
             >
-              <div className="relative">
+              <div className="relative shrink-0">
                 <span className="text-2xl">🛒</span>
                 <span className="absolute -top-1 -right-2 bg-amber-500 text-white font-extrabold text-[10px] w-5 h-5 rounded-full flex items-center justify-center">
                   {totalCount}
                 </span>
               </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                  Jami ({totalCount} ta)
+
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-bold text-amber-300 truncate">
+                  {cart.map((i) => `${i.name} x${i.quantity}`).join(", ")}
                 </span>
-                <span className="text-sm font-extrabold text-amber-400">
+                <span className="text-sm font-extrabold text-white">
                   {totalPrice.toLocaleString()} so'm
                 </span>
               </div>
@@ -450,7 +581,7 @@ export default function OrderForm() {
             <button
               disabled={submitting}
               onClick={handleSubmitOrder}
-              className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-black text-xs px-4 py-2.5 rounded-xl transition shadow-md flex items-center gap-1.5"
+              className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-black text-xs px-4 py-2.5 rounded-xl transition shadow-md flex items-center gap-1.5 shrink-0"
             >
               {submitting ? (
                 "Yuborilmoqda..."
@@ -471,7 +602,7 @@ export default function OrderForm() {
           <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl max-h-[80vh] flex flex-col p-4 shadow-2xl">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <h3 className="font-extrabold text-slate-800 text-base flex items-center gap-2">
-                <span>📋 Buyurtma tarkibi</span>
+                <span>📋 Yangi buyurtma</span>
                 <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
                   Stol №{tableNumber}
                 </span>
