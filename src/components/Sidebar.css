@@ -1,354 +1,553 @@
-/* ============================================= */
-/* MOBIL PASTKI NAVBAR - rounded card konteyner   */
-/* ============================================= */
-.sb-sidebar-mobile {
-  position: fixed;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  background: #ffffff;
-  border-radius: 24px;
-  padding: 8px 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  width: calc(100% - 32px);
-  max-width: 420px;
-  height: 64px;
-  z-index: 50;
-}
+/* ==========================================================
+   SIDEBAR
+========================================================== */
 
-/* Har bir nav item (mobil) */
-.sb-nav-item-mobile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 4px 10px;
-  border-radius: 28px;
-  color: #9ca3af;
-  text-decoration: none;
-  transition: background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.25s ease;
-  position: relative;
-}
-
-.sb-nav-item-mobile:active {
-  transform: scale(0.92);
-}
-
-/* Faol (active) holat - rounded "pill" fon */
-.sb-nav-item-mobile.active {
-background: rgba(115, 69, 4, 0.7); 
-  color: #ffffff;
-  padding: 4px 16px;
-}
-
-/* Admin sidebar (desktop) nav item */
-.sb-nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 6px 4px;
-  border-radius: 16px;
-  color: #9ca3af;
-  text-decoration: none;
-  transition: background-color 0.35s ease, color 0.35s ease;
-}
-
-.sb-nav-item.active {
-  background-color: #1f2937;
-  color: #ffffff;
-}
-
-/* ============================================= */
-/* ICON WRAP - hover'da dumaloq fon              */
-/* ============================================= */
-.sb-icon-wrap {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  background-color: transparent;
-  transition: background-color 0.25s ease, transform 0.25s ease;
-}
-
-.sb-icon-wrap .sb-icon {
-  position: relative;
-  z-index: 1;
-}
-
-/* Cursor borganda sidebar elementi ozgina ajralib chiqadi */
-.sb-nav-item-mobile:hover .sb-icon-wrap,
-.sb-nav-item:hover .sb-icon-wrap,
-.sb-logout-btn:hover .sb-icon-wrap,
-.sb-lang-btn:hover .sb-icon-wrap {
-  background-color: #f3f4f6;
-  transform: scale(1.06);
-}
-
-/* Active holatda rangli fon */
-.sb-nav-item-mobile.active .sb-icon-wrap,
-.sb-nav-item.active .sb-icon-wrap {
-  background-color: rgba(255, 255, 255, 0.15);
-}
-
-/* ============================================= */
-/* ICON - yengil "pop" effekti hover'da          */
-/* ============================================= */
-.sb-icon {
-  width: 20px;
-  height: 20px;
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  flex-shrink: 0;
-}
-
-.sb-nav-item-mobile:hover .sb-icon,
-.sb-nav-item:hover .sb-icon,
-.sb-logout-btn:hover .sb-icon,
-.sb-lang-btn:hover .sb-icon {
-  transform: scale(1.1);
-}
-
-/* ============================================= */
-/* LABEL - nofaol holatda yashirin, faol bo'lganda ko'rinadi */
-/* ============================================= */
-.sb-nav-label-mobile {
-  font-size: 11px;
-  font-weight: 600;
-  max-width: 0;
-  opacity: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  transition: max-width 0.35s ease, opacity 0.25s ease, margin-left 0.35s ease;
-}
-
-.sb-nav-item-mobile.active .sb-nav-label-mobile {
-  max-width: 120px;
-  opacity: 1;
-  margin-left: 4px;
-}
-
-.sb-nav-label {
-  font-size: 10px;
-  font-weight: 600;
-}
-
-/* ============================================= */
-/* ADMIN DESKTOP SIDEBAR (chap tomon, vertikal)  */
-/* ============================================= */
 .sb-sidebar-desktop {
   position: fixed;
-  top: 0;
   left: 0;
-  height: 100vh;
-  width: 84px;
-  background: #ffffff;
-  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.06);
+  top: 0;
+  bottom: 0;
+
+  width: 240px;
+
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 16px 0;
-  z-index: 50;
+
+  padding: 22px 14px;
+
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+
+  z-index: 40;
 }
 
+
+/* ==========================================================
+   LOGO
+========================================================== */
+
 .sb-logo {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: #1f2937;
-  color: #ffffff;
+  height: 52px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 0 12px;
+
+  margin-bottom: 24px;
+}
+
+.sb-logo-icon {
+  width: 38px;
+  height: 38px;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 24px;
+
+  border-radius: 12px;
+
+  background: #2563eb;
+
+  color: white;
+
+  font-size: 20px;
+
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
 }
+
+.sb-logo-text {
+  font-size: 18px;
+  font-weight: 800;
+
+  color: #0f172a;
+
+  letter-spacing: -0.02em;
+}
+
+
+/* ==========================================================
+   NAV LIST
+========================================================== */
 
 .sb-nav-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+
+  gap: 6px;
+
   flex: 1;
 }
 
-.sb-logout-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #9ca3af;
-  border-radius: 16px;
-  transition: color 0.3s ease;
-}
 
-.sb-logout-btn:hover {
-  color: #ef4444;
-}
+/* ==========================================================
+   NAV ITEM
+========================================================== */
 
-/* ============================================= */
-/* TIL TANLAGICH (Lang Switcher)                 */
-/* ============================================= */
-.sb-lang-btn {
+.sb-nav-item {
   width: 100%;
-  height: 100%;
+  min-height: 46px;
+
   display: flex;
-  flex-direction: column;
+  align-items: center;
+
+  gap: 12px;
+
+  padding: 0 12px;
+
+  border-radius: 12px;
+
+  text-decoration: none;
+
+  color: #64748b;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.sb-nav-item:hover {
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.sb-nav-item.active {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+
+/* ==========================================================
+   ICON
+========================================================== */
+
+.sb-icon-wrap {
+  width: 34px;
+  height: 34px;
+
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #9ca3af;
-  border-radius: 18px;
-  transition: color 0.3s ease;
+
+  flex-shrink: 0;
+
+  border-radius: 10px;
 }
 
-.sb-lang-btn.open {
-  color: #1f2937;
+.sb-nav-item.active .sb-icon-wrap {
+  background: #dbeafe;
+}
+
+.sb-icon {
+  font-size: 18px;
+
+  line-height: 1;
+}
+
+
+/* ==========================================================
+   LABEL
+========================================================== */
+
+.sb-nav-label {
+  white-space: nowrap;
+}
+
+
+/* ==========================================================
+   BOTTOM
+========================================================== */
+
+.sb-bottom {
+  display: flex;
+  flex-direction: column;
+
+  gap: 8px;
+
+  padding-top: 14px;
+
+  border-top: 1px solid #f1f5f9;
+}
+
+
+/* ==========================================================
+   LANGUAGE
+========================================================== */
+
+.sb-lang-container {
+  position: relative;
+
+  width: 100%;
+}
+
+.sb-lang-btn {
+  width: 100%;
+  height: 44px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 0 12px;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+
+  background: #ffffff;
+
+  color: #475569;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition: all 0.18s ease;
+}
+
+.sb-lang-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
 .sb-lang-code {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 800;
 }
+
+
+/* ==========================================================
+   LANGUAGE DROPDOWN
+========================================================== */
 
 .sb-lang-dropdown {
   position: absolute;
+
+  bottom: calc(100% + 8px);
+
+  width: 120px;
+
+  padding: 5px;
+
   background: #ffffff;
-  border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  z-index: 60;
-  animation: sb-fade-in 0.2s ease;
-}
 
-.sb-lang-dropdown.direction-up {
-  bottom: 70px;
-  left: 50%;
-  transform: translateX(-50%);
-}
+  border: 1px solid #e2e8f0;
 
-.sb-lang-dropdown.direction-right {
-  left: 70px;
-  top: 50%;
-  transform: translateY(-50%);
-}
+  border-radius: 12px;
 
-.sb-lang-option {
-  padding: 8px 14px;
-  border-radius: 10px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  color: #4b5563;
-  transition: background-color 0.2s ease;
-}
+  box-shadow:
+    0 12px 30px rgba(15, 23, 42, 0.12);
 
-.sb-lang-option:hover {
-  background-color: #f3f4f6;
-}
-
-.sb-lang-option.selected {
-  background-color: #1f2937;
-  color: #ffffff;
-}
-
-@keyframes sb-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ============================================= */
-/* LOGOUT MODAL                                  */
-/* ============================================= */
-.sb-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 100;
 }
 
+.sb-lang-dropdown.direction-right {
+  left: 0;
+}
+
+.sb-lang-dropdown.direction-left {
+  right: 0;
+}
+
+.sb-lang-option {
+  width: 100%;
+
+  padding: 9px 10px;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background: transparent;
+
+  text-align: left;
+
+  color: #475569;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.sb-lang-option:hover {
+  background: #f8fafc;
+}
+
+.sb-lang-option.selected {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+
+/* ==========================================================
+   LOGOUT
+========================================================== */
+
+.sb-logout-btn {
+  width: 100%;
+  height: 44px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 0 12px;
+
+  border: none;
+
+  border-radius: 11px;
+
+  background: #fff1f2;
+
+  color: #e11d48;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition: all 0.18s ease;
+}
+
+.sb-logout-btn:hover {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+
+/* ==========================================================
+   MOBILE NAV
+========================================================== */
+
+.sb-sidebar-mobile {
+  display: none;
+}
+
+
+/* ==========================================================
+   LOGOUT MODAL
+========================================================== */
+
+.sb-modal-overlay {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+
+  background: rgba(15, 23, 42, 0.45);
+
+  backdrop-filter: blur(4px);
+}
+
 .sb-modal-card {
+  width: 100%;
+  max-width: 390px;
+
+  padding: 28px;
+
   background: #ffffff;
+
   border-radius: 20px;
-  padding: 24px;
-  width: 90%;
-  max-width: 320px;
+
+  box-shadow:
+    0 25px 60px rgba(15, 23, 42, 0.2);
+
   text-align: center;
 }
 
 .sb-modal-icon-wrap {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: #fee2e2;
-  color: #ef4444;
+  width: 54px;
+  height: 54px;
+
+  margin: 0 auto 16px;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 12px;
+
+  border-radius: 16px;
+
+  background: #fff1f2;
+
+  font-size: 24px;
 }
 
 .sb-modal-title {
-  font-size: 16px;
-  font-weight: 700;
-  margin-bottom: 6px;
+  margin: 0;
+
+  font-size: 20px;
+  font-weight: 800;
+
+  color: #0f172a;
 }
 
 .sb-modal-text {
-  font-size: 13px;
-  color: #6b7280;
-  margin-bottom: 18px;
+  margin: 8px 0 0;
+
+  color: #64748b;
+
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .sb-modal-actions {
-  display: flex;
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
   gap: 10px;
+
+  margin-top: 24px;
 }
 
-.sb-btn-confirm,
-.sb-btn-cancel {
-  flex: 1;
-  padding: 10px 0;
-  border-radius: 12px;
+.sb-btn-cancel,
+.sb-btn-confirm {
+  height: 44px;
+
   border: none;
-  font-weight: 600;
+
+  border-radius: 11px;
+
   font-size: 13px;
+  font-weight: 700;
+
   cursor: pointer;
 }
 
+.sb-btn-cancel {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.sb-btn-cancel:hover {
+  background: #e2e8f0;
+}
+
 .sb-btn-confirm {
-  background: #ef4444;
+  background: #e11d48;
   color: #ffffff;
 }
 
-.sb-btn-cancel {
-  background: #f3f4f6;
-  color: #374151;
+.sb-btn-confirm:hover {
+  background: #be123c;
+}
+
+
+/* ==========================================================
+   MOBILE
+========================================================== */
+
+@media (max-width: 767px) {
+
+  .sb-sidebar-desktop {
+    display: none;
+  }
+
+  .sb-sidebar-mobile {
+    position: fixed;
+
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    height: 68px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+
+    padding: 6px 8px;
+
+    background: rgba(255, 255, 255, 0.96);
+
+    border-top: 1px solid #e2e8f0;
+
+    box-shadow:
+      0 -8px 25px rgba(15, 23, 42, 0.06);
+
+    z-index: 50;
+  }
+
+  .sb-nav-item-mobile,
+  .sb-mobile-logout {
+    min-width: 58px;
+
+    height: 56px;
+
+    display: flex;
+    flex-direction: column;
+
+    align-items: center;
+    justify-content: center;
+
+    gap: 3px;
+
+    border: none;
+
+    border-radius: 12px;
+
+    background: transparent;
+
+    text-decoration: none;
+
+    color: #94a3b8;
+
+    cursor: pointer;
+  }
+
+  .sb-nav-item-mobile.active {
+    color: #2563eb;
+    background: #eff6ff;
+  }
+
+  .sb-nav-item-mobile .sb-icon-wrap {
+    width: auto;
+    height: auto;
+
+    background: transparent;
+  }
+
+  .sb-nav-item-mobile.active .sb-icon-wrap {
+    background: transparent;
+  }
+
+  .sb-nav-label-mobile {
+    font-size: 10px;
+    font-weight: 700;
+
+    white-space: nowrap;
+  }
+
+  .sb-mobile-logout {
+    color: #e11d48;
+  }
+
+  .sb-mobile-logout:hover {
+    background: #fff1f2;
+  }
+
+  .sb-mobile-logout .sb-nav-label-mobile {
+    color: inherit;
+  }
+
+  .sb-sidebar-mobile .sb-lang-container {
+    display: none;
+  }
+
 }

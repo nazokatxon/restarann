@@ -1,12 +1,18 @@
 import React from "react";
+
 import {
   BrowserRouter,
   Routes,
   Route,
   Navigate,
+  Link,
+  useLocation,
 } from "react-router-dom";
 
-import { AuthProvider, useAuth } from "./context/AuthContext";
+import {
+  AuthProvider,
+  useAuth,
+} from "./context/AuthContext";
 
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
@@ -34,23 +40,29 @@ import "react-toastify/dist/ReactToastify.css";
 
 import "./index.css";
 
-// =========================================================
+// =====================================================
 // PROTECTED ROUTE
-// =========================================================
+// =====================================================
 
-function ProtectedRoute({ children, allowedRoles }) {
-  const { user, role, loading } = useAuth();
+function ProtectedRoute({
+  children,
+  allowedRoles,
+}) {
+  const {
+    user,
+    role,
+    loading,
+  } = useAuth();
 
-  // Yuklanayotgan payt
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f7f5ef]">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-amber-100 flex items-center justify-center">
-            <span className="text-2xl">☕</span>
+          <div className="text-5xl mb-4">
+            ☕
           </div>
 
-          <p className="font-bold text-gray-700">
+          <p className="text-slate-500 font-semibold">
             Yuklanmoqda...
           </p>
         </div>
@@ -58,39 +70,58 @@ function ProtectedRoute({ children, allowedRoles }) {
     );
   }
 
-  // Login qilmagan bo'lsa
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
   }
 
-  // Rol ruxsat etilmagan bo'lsa
   if (
     allowedRoles &&
     !allowedRoles.includes(role)
   ) {
-    return <Navigate to="/" replace />;
+    return (
+      <Navigate
+        to="/"
+        replace
+      />
+    );
   }
 
   return children;
 }
 
-// =========================================================
+// =====================================================
 // ROLE REDIRECT
-// =========================================================
+// =====================================================
 
 function RoleRedirect() {
-  const { user, role, loading } = useAuth();
+  const {
+    user,
+    role,
+    loading,
+  } = useAuth();
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        Yuklanmoqda...
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-slate-500 font-semibold">
+          Yuklanmoqda...
+        </p>
       </div>
     );
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
   }
 
   switch (role) {
@@ -111,6 +142,7 @@ function RoleRedirect() {
       );
 
     case "waiter":
+    case "ofitsiant":
       return (
         <Navigate
           to="/waiter/tables"
@@ -119,6 +151,7 @@ function RoleRedirect() {
       );
 
     case "chef":
+    case "oshpaz":
       return (
         <Navigate
           to="/chef/queue"
@@ -127,6 +160,7 @@ function RoleRedirect() {
       );
 
     case "cashier":
+    case "kassir":
       return (
         <Navigate
           to="/cashier/billing"
@@ -144,58 +178,248 @@ function RoleRedirect() {
   }
 }
 
-// =========================================================
+// =====================================================
+// CASHIER TOP NAVIGATION
+// =====================================================
+
+function CashierTopNav() {
+  const location = useLocation();
+
+  const items = [
+    {
+      to: "/cashier/billing",
+      label: "Buyurtmalar",
+    },
+    {
+      to: "/cashier/payments",
+      label: "To'lovlar",
+    },
+    {
+      to: "/cashier/receipts",
+      label: "Cheklar",
+    },
+    {
+      to: "/cashier/reports",
+      label: "Hisobotlar",
+    },
+    {
+      to: "/cashier/settings",
+      label: "Sozlamalar",
+    },
+  ];
+
+  return (
+    <div className="w-full bg-white border-b border-slate-200">
+      <div
+        className="
+          flex
+          items-center
+          gap-0
+          px-5
+          sm:px-10
+          overflow-x-auto
+        "
+      >
+        {items.map((item) => {
+          const active =
+            location.pathname === item.to;
+
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={`
+                relative
+                flex
+                items-center
+                justify-center
+                px-5
+                sm:px-7
+                h-16
+                text-[15px]
+                sm:text-[17px]
+                font-bold
+                whitespace-nowrap
+                transition-all
+                duration-200
+                ${
+                  active
+                    ? "text-blue-600"
+                    : "text-slate-500 hover:text-slate-800"
+                }
+              `}
+            >
+              {item.label}
+
+              {active && (
+                <span
+                  className="
+                    absolute
+                    left-0
+                    right-0
+                    bottom-0
+                    h-[2px]
+                    bg-blue-600
+                    rounded-t-full
+                  "
+                />
+              )}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// =====================================================
+// MAIN LAYOUT
+// =====================================================
+
+function MainLayout({
+  children,
+}) {
+  const { role } = useAuth();
+
+  const isCashier =
+    role === "cashier" ||
+    role === "kassir";
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <Sidebar />
+
+      <div className="app-main">
+        {/* =========================================
+            HEADER
+        ========================================= */}
+
+        <header className="app-navbar sticky top-0 z-50">
+          <Navbar />
+        </header>
+
+        {/* =========================================
+            CASHIER TOP MENU
+            FAQAT KASSIR UCHUN
+        ========================================= */}
+
+        {isCashier && (
+          <div className="sticky top-[68px] z-40">
+            <CashierTopNav />
+          </div>
+        )}
+
+        {/* =========================================
+            PAGE CONTENT
+        ========================================= */}
+
+        <main className="app-content">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================
+// SIMPLE CASHIER PAGE
+// =====================================================
+
+function CashierSimplePage({
+  title,
+  description,
+}) {
+  return (
+    <div className="w-full min-h-screen bg-slate-50">
+      <div className="bg-white border-b border-slate-200">
+        <div className="px-5 sm:px-10 py-8">
+          <h1 className="text-3xl sm:text-4xl font-black text-slate-900">
+            {title}
+          </h1>
+
+          <p className="mt-3 text-base sm:text-lg text-slate-500">
+            {description}
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-white border-x border-b border-slate-200 px-5 sm:px-10 py-10">
+        <div className="min-h-[400px] flex items-center justify-center text-center">
+          <div>
+            <h2 className="text-2xl font-black text-slate-800">
+              {title}
+            </h2>
+
+            <p className="mt-2 text-slate-500">
+              {description}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================
 // APP ROUTES
-// =========================================================
+// =====================================================
 
 function AppRoutes() {
   return (
     <Routes>
 
-      {/* =====================================================
+      {/* =========================================
           LOGIN
-      ===================================================== */}
+      ========================================= */}
 
       <Route
         path="/login"
         element={<Login />}
       />
 
-      {/* =====================================================
-          BOSH SAHIFA
-      ===================================================== */}
+      {/* =========================================
+          ROOT
+      ========================================= */}
 
       <Route
         path="/"
         element={<RoleRedirect />}
       />
 
-      {/* =====================================================
+      {/* =========================================
           BIG ADMIN
-      ===================================================== */}
+      ========================================= */}
 
       <Route
         path="/bigadmin/cafes"
         element={
           <ProtectedRoute
-            allowedRoles={["bigadmin"]}
+            allowedRoles={[
+              "bigadmin",
+            ]}
           >
-            <CafeList />
+            <MainLayout>
+              <CafeList />
+            </MainLayout>
           </ProtectedRoute>
         }
       />
 
-      {/* =====================================================
+      {/* =========================================
           ADMIN
-      ===================================================== */}
+      ========================================= */}
 
       <Route
         path="/admin/analytics"
         element={
           <ProtectedRoute
-            allowedRoles={["admin"]}
+            allowedRoles={[
+              "admin",
+            ]}
           >
-            <Analytics />
+            <MainLayout>
+              <Analytics />
+            </MainLayout>
           </ProtectedRoute>
         }
       />
@@ -204,9 +428,13 @@ function AppRoutes() {
         path="/admin/menu"
         element={
           <ProtectedRoute
-            allowedRoles={["admin"]}
+            allowedRoles={[
+              "admin",
+            ]}
           >
-            <MenuManager />
+            <MainLayout>
+              <MenuManager />
+            </MainLayout>
           </ProtectedRoute>
         }
       />
@@ -215,24 +443,33 @@ function AppRoutes() {
         path="/admin/staff"
         element={
           <ProtectedRoute
-            allowedRoles={["admin"]}
+            allowedRoles={[
+              "admin",
+            ]}
           >
-            <StaffList />
+            <MainLayout>
+              <StaffList />
+            </MainLayout>
           </ProtectedRoute>
         }
       />
 
-      {/* =====================================================
-          OFITSIANT
-      ===================================================== */}
+      {/* =========================================
+          WAITER
+      ========================================= */}
 
       <Route
         path="/waiter/tables"
         element={
           <ProtectedRoute
-            allowedRoles={["waiter"]}
+            allowedRoles={[
+              "waiter",
+              "ofitsiant",
+            ]}
           >
-            <TableGrid />
+            <MainLayout>
+              <TableGrid />
+            </MainLayout>
           </ProtectedRoute>
         }
       />
@@ -241,62 +478,150 @@ function AppRoutes() {
         path="/waiter/order"
         element={
           <ProtectedRoute
-            allowedRoles={["waiter"]}
+            allowedRoles={[
+              "waiter",
+              "ofitsiant",
+            ]}
           >
-            <OrderForm />
+            <MainLayout>
+              <OrderForm />
+            </MainLayout>
           </ProtectedRoute>
         }
       />
 
-      {/* =====================================================
-          OSHPAZ
-      ===================================================== */}
+      {/* =========================================
+          CHEF
+      ========================================= */}
 
       <Route
         path="/chef/queue"
         element={
           <ProtectedRoute
-            allowedRoles={["chef"]}
+            allowedRoles={[
+              "chef",
+              "oshpaz",
+            ]}
           >
-            <KitchenQueue />
+            <MainLayout>
+              <KitchenQueue />
+            </MainLayout>
           </ProtectedRoute>
         }
       />
 
-      {/* =====================================================
-          KASSA
-      ===================================================== */}
+      {/* =========================================
+          CASHIER - BUYURTMALAR
+      ========================================= */}
 
       <Route
         path="/cashier/billing"
         element={
           <ProtectedRoute
-            allowedRoles={["cashier"]}
+            allowedRoles={[
+              "cashier",
+              "kassir",
+            ]}
           >
-            <Billing />
+            <MainLayout>
+              <Billing />
+            </MainLayout>
           </ProtectedRoute>
         }
       />
 
-      {/* =====================================================
-          HISOBOTLAR
-          🔥 ENG MUHIM QISM
-      ===================================================== */}
+      {/* =========================================
+          CASHIER - TO'LOVLAR
+      ========================================= */}
+
+      <Route
+        path="/cashier/payments"
+        element={
+          <ProtectedRoute
+            allowedRoles={[
+              "cashier",
+              "kassir",
+            ]}
+          >
+            <MainLayout>
+              <CashierSimplePage
+                title="To'lovlar"
+                description="Qabul qilingan to'lovlarni boshqarish"
+              />
+            </MainLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* =========================================
+          CASHIER - CHEKLAR
+      ========================================= */}
+
+      <Route
+        path="/cashier/receipts"
+        element={
+          <ProtectedRoute
+            allowedRoles={[
+              "cashier",
+              "kassir",
+            ]}
+          >
+            <MainLayout>
+              <CashierSimplePage
+                title="Cheklar"
+                description="Cheklar va to'lov hujjatlarini boshqarish"
+              />
+            </MainLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* =========================================
+          CASHIER - HISOBOTLAR
+      ========================================= */}
 
       <Route
         path="/cashier/reports"
         element={
           <ProtectedRoute
-            allowedRoles={["cashier"]}
+            allowedRoles={[
+              "cashier",
+              "kassir",
+            ]}
           >
-            <Reports />
+            <MainLayout>
+              <Reports />
+            </MainLayout>
           </ProtectedRoute>
         }
       />
 
-      {/* =====================================================
+      {/* =========================================
+          CASHIER - SOZLAMALAR
+      ========================================= */}
+
+      <Route
+        path="/cashier/settings"
+        element={
+          <ProtectedRoute
+            allowedRoles={[
+              "cashier",
+              "kassir",
+            ]}
+          >
+            <MainLayout>
+              <CashierSimplePage
+                title="Sozlamalar"
+                description="Kassa sozlamalarini boshqarish"
+              />
+            </MainLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* =========================================
           NOT FOUND
-      ===================================================== */}
+      ========================================= */}
 
       <Route
         path="*"
@@ -312,18 +637,16 @@ function AppRoutes() {
   );
 }
 
-// =========================================================
+// =====================================================
 // APP
-// =========================================================
+// =====================================================
 
 function App() {
   return (
     <BrowserRouter>
-
       <AuthProvider>
 
         <ErrorBoundary>
-
           <AppRoutes />
 
           <ToastContainer
@@ -334,11 +657,9 @@ function App() {
             closeOnClick
             pauseOnHover
           />
-
         </ErrorBoundary>
 
       </AuthProvider>
-
     </BrowserRouter>
   );
 }

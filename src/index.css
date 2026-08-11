@@ -3,173 +3,547 @@
 @tailwind utilities;
 
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
+  --text: #64748b;
+  --text-h: #0f172a;
+
   --bg: #ffffff;
-  --border: #e5e4e7;
+  --page-bg: #f8fafc;
+
+  --border: #e2e8f0;
+
   --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+
+  --accent: #2563eb;
+  --accent-bg: rgba(37, 99, 235, 0.1);
+  --accent-border: rgba(37, 99, 235, 0.5);
+
   --social-bg: rgba(244, 243, 236, 0.5);
+
   --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+    rgba(15, 23, 42, 0.08) 0 10px 25px -5px,
+    rgba(15, 23, 42, 0.04) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --sans:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
+  --heading:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+
+  --mono:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  font-family: var(--sans);
+
   color: var(--text);
+
   background: var(--bg);
+
   font-synthesis: none;
+
   text-rendering: optimizeLegibility;
+
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+/* ==========================================================
+   HTML
+   ========================================================== */
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+html {
+  margin: 0;
+  padding: 0;
+
+  min-height: 100%;
+
+  scroll-behavior: smooth;
 }
+
+/* ==========================================================
+   BODY
+   ========================================================== */
 
 body {
   margin: 0;
+  padding: 0;
+
+  min-width: 320px;
+  min-height: 100vh;
+
+  background: #f8fafc;
+
+  color: #64748b;
+
+  font-family: var(--sans);
+
+  overflow-x: hidden;
 }
 
+/* ==========================================================
+   ROOT
+   ========================================================== */
+
 #root {
-  width: 1126px;
+  width: 100%;
   max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+
+  min-height: 100vh;
+
+  margin: 0;
+  padding: 0;
+
+  box-sizing: border-box;
+
+  text-align: left;
+
   display: flex;
   flex-direction: column;
+
+  background: #f8fafc;
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+button {
+  cursor: pointer;
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
+
+button:disabled {
+  cursor: not-allowed;
 }
+
+/* ==========================================================
+   HEADINGS
+   ========================================================== */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--heading);
+
+  color: var(--text-h);
+
+  margin: 0;
+}
+
+
 p {
   margin: 0;
+}
+
+
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
 code,
 .counter {
   font-family: var(--mono);
+
   display: inline-flex;
+
   border-radius: 4px;
+
   color: var(--text-h);
 }
 
 code {
   font-size: 15px;
+
   line-height: 135%;
+
   padding: 4px 8px;
+
   background: var(--code-bg);
 }
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.15);
+  color: #0f172a;
+}
+
 @keyframes slideFromLeft {
-  0% { opacity: 0; transform: translateX(-60px); }
-  100% { opacity: 1; transform: translateX(0); }
+  0% {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
+
 @keyframes slideFromRight {
-  0% { opacity: 0; transform: translateX(60px); }
-  100% { opacity: 1; transform: translateX(0); }
+  0% {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .animate-fade-left {
-  animation: slideFromLeft 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation:
+    slideFromLeft
+    0.6s
+    cubic-bezier(0.16, 1, 0.3, 1)
+    forwards;
 }
+
 .animate-fade-right {
-  animation: slideFromRight 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation:
+    slideFromRight
+    0.6s
+    cubic-bezier(0.16, 1, 0.3, 1)
+    forwards;
 }
 
-/* ==========================================================================
-   MOBIL QURILMALAR UCHUN IXCHAM OQ XABARNOMALAR (TOASTS) SOZLAMASI
-   ========================================================================== */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
 
-/* Ekran kengligi 768px dan kichik bo'lganda (telefonlar uchun) */
+.animate-scale-in {
+  animation: scaleIn 0.25s ease forwards;
+}
+
+.app-main {
+  min-height: 100vh;
+
+  margin-left: 300px;
+
+  display: flex;
+  flex-direction: column;
+
+  min-width: 0;
+
+  background: #f8fafc;
+}
+.app-navbar {
+  height: 76px;
+  min-height: 76px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Navbar ichidagi nav */
+
+.app-navbar > nav {
+  width: 100%;
+}
+
+.app-content {
+  flex: 1;
+
+  min-width: 0;
+
+  width: 100%;
+
+  padding: 24px;
+
+  background: #f8fafc;
+}
+.app-content > * {
+  min-width: 0;
+}
+
+.table-wrapper {
+  width: 100%;
+
+  overflow-x: auto;
+
+  -webkit-overflow-scrolling: touch;
+}
+
+
+.modal-overlay {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 999;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  padding: 16px;
+
+  background: rgba(15, 23, 42, 0.45);
+
+  backdrop-filter: blur(5px);
+
+  -webkit-backdrop-filter: blur(5px);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+input[type="date"] {
+  color-scheme: light;
+}
+
+.Toastify__toast-container {
+  z-index: 99999;
+}
+
+.Toastify__toast {
+  border-radius: 12px;
+
+  font-family: var(--sans);
+
+  box-shadow: var(--shadow);
+}
+
+/* ==========================================================
+   MOBILE TOAST
+   ========================================================== */
+
 @media (max-width: 768px) {
-  /* Agar react-toastify yoki shunga o'xshash div role="alert" ishlatilgan bo'lsa */
   div[role="alert"],
   .Toastify__toast,
   .notification-toast {
-    background-color: #ffffff !important; /* To'q yashil/jigarrang o'rniga toza oq fon */
-    color: #1e293b !important;            /* Matn rangi to'q kulrang */
-    border: 1px solid #e2e8f0 !important; /* Chiroyli yupqa chegara */
-    max-width: 260px !important;          /* Eni kichraytirildi, ekranni qoplamaydi */
-    padding: 6px 10px !important;         /* Ichki masofalar qisqartirildi */
-    font-size: 11px !important;           /* Shrift o'lchami kichikroq */
-    border-radius: 10px !important;        /* Burchaklari yumshoq */
-    margin: 4px auto 4px right !important;/* Bir-biriga yopishib qolmaydi */
-    box-shadow: var(--shadow) !important; /* Root-dagi tayyor shadow effekti */
+    background-color: #ffffff !important;
+
+    color: #1e293b !important;
+
+    border: 1px solid #e2e8f0 !important;
+
+    max-width: 260px !important;
+
+    padding: 6px 10px !important;
+
+    font-size: 11px !important;
+
+    border-radius: 10px !important;
+
+    box-shadow: var(--shadow) !important;
   }
 
-  /* Xabarnoma ichidagi ikonka va sarlavhalar rangi */
   div[role="alert"] p,
   div[role="alert"] span,
   .Toastify__toast-body {
     color: #1e293b !important;
+
     font-weight: 500 !important;
   }
 
-  /* Bildirishnomani yopish (X) tugmasini kichraytirish */
   div[role="alert"] button,
   .Toastify__close-button {
-    color: #94a3b8 !important;            /* Oq "X" o'rniga och kulrang */
+    color: #94a3b8 !important;
+
     font-size: 10px !important;
+
     opacity: 0.7;
   }
-  
-  /* Xabarnomalar konteynerini o'ng tomonga ixcham joylashtirish */
+
   .Toastify__toast-container {
     width: auto !important;
+
     max-width: 280px !important;
+
     right: 8px !important;
+
     top: 8px !important;
+  }
+}
+
+/* ==========================================================
+   MOBILE
+   ========================================================== */
+
+@media (max-width: 768px) {
+  .app-main {
+    margin-left: 0;
+
+    padding-bottom: 90px;
+
+    min-height: 100vh;
+  }
+
+  .app-navbar {
+    height: 68px;
+
+    min-height: 68px;
+
+    padding: 0 14px;
+
+    position: sticky;
+
+    top: 0;
+
+    z-index: 90;
+  }
+
+  .app-content {
+    padding: 16px 12px 24px;
+
+    width: 100%;
+  }
+}
+@media (max-width: 480px) {
+  .app-navbar {
+    height: 64px;
+
+    min-height: 64px;
+
+    padding: 0 10px;
+  }
+
+  .app-content {
+    padding: 12px 10px 20px;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .app-main {
+    margin-left: 84px;
+  }
+
+  .app-navbar {
+    padding: 0 20px;
+  }
+
+  .app-content {
+    padding: 20px;
+  }
+}
+
+
+
+@media (min-width: 1440px) {
+  .app-content {
+    padding: 28px 32px;
+  }
+
+  .app-navbar {
+    padding: 0 32px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #94a3b8;
+    --text-h: #f8fafc;
+
+    --bg: #0f172a;
+    --border: #334155;
+
+    --code-bg: #1e293b;
+
+    --accent: #60a5fa;
+
+    --accent-bg: rgba(96, 165, 250, 0.15);
+
+    --accent-border: rgba(96, 165, 250, 0.5);
+  }
+
+  body {
+    background: #0f172a;
+  }
+
+  #root {
+    background: #0f172a;
+  }
+
+  .app-main {
+    background: #0f172a;
+  }
+
+  .app-content {
+    background: #0f172a;
+  }
+
+  .app-navbar {
+    background: rgba(15, 23, 42, 0.94);
+
+    border-bottom-color: #334155;
   }
 }
