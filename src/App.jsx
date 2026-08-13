@@ -286,26 +286,58 @@ function MainLayout({
     role === "kassir";
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-slate-50">
+
+      {/* =================================================
+          SIDEBAR
+      ================================================= */}
+
       <Sidebar />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* HEADER */}
-        <header className="sticky top-0 z-50 bg-white border-b border-slate-200">
+      {/* =================================================
+          MAIN CONTENT
+
+          Sidebar desktop width = 240px
+          Mobile'da sidebar pastda bo'ladi
+      ================================================= */}
+
+      <div
+        className="
+          min-h-screen
+          flex
+          flex-col
+          min-w-0
+          ml-0
+          md:ml-[240px]
+        "
+      >
+
+        {/* =================================================
+            HEADER / NAVBAR
+        ================================================= */}
+
+        <header className="sticky top-0 z-50 bg-white">
           <Navbar />
         </header>
 
-        {/* CASHIER TOP MENU */}
+        {/* =================================================
+            CASHIER TOP MENU
+        ================================================= */}
+
         {isCashier && (
           <div className="sticky top-[68px] z-40">
             <CashierTopNav />
           </div>
         )}
 
-        {/* PAGE CONTENT */}
-        <main className="flex-1 bg-slate-50 w-full">
+        {/* =================================================
+            PAGE CONTENT
+        ================================================= */}
+
+        <main className="flex-1 bg-slate-50 w-full min-w-0">
           {children}
         </main>
+
       </div>
     </div>
   );
@@ -321,8 +353,10 @@ function CashierSimplePage({
 }) {
   return (
     <div className="w-full min-h-screen bg-slate-50">
+
       <div className="bg-white border-b border-slate-200">
         <div className="px-5 sm:px-10 py-8">
+
           <h1 className="text-3xl sm:text-4xl font-black text-slate-900">
             {title}
           </h1>
@@ -330,12 +364,16 @@ function CashierSimplePage({
           <p className="mt-3 text-base sm:text-lg text-slate-500">
             {description}
           </p>
+
         </div>
       </div>
 
       <div className="bg-white border-x border-b border-slate-200 px-5 sm:px-10 py-10">
+
         <div className="min-h-[400px] flex items-center justify-center text-center">
+
           <div>
+
             <h2 className="text-2xl font-black text-slate-800">
               {title}
             </h2>
@@ -343,9 +381,13 @@ function CashierSimplePage({
             <p className="mt-2 text-slate-500">
               {description}
             </p>
+
           </div>
+
         </div>
+
       </div>
+
     </div>
   );
 }
@@ -358,19 +400,28 @@ function AppRoutes() {
   return (
     <Routes>
 
-      {/* LOGIN */}
+      {/* =================================================
+          LOGIN
+      ================================================= */}
+
       <Route
         path="/login"
         element={<Login />}
       />
 
-      {/* ROOT REDIRECT */}
+      {/* =================================================
+          ROOT REDIRECT
+      ================================================= */}
+
       <Route
         path="/"
         element={<RoleRedirect />}
       />
 
-      {/* BIG ADMIN */}
+      {/* =================================================
+          BIG ADMIN
+      ================================================= */}
+
       <Route
         path="/bigadmin/cafes"
         element={
@@ -386,7 +437,10 @@ function AppRoutes() {
         }
       />
 
-      {/* ADMIN */}
+      {/* =================================================
+          ADMIN ANALYTICS
+      ================================================= */}
+
       <Route
         path="/admin/analytics"
         element={
@@ -401,6 +455,10 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* =================================================
+          ADMIN MENU
+      ================================================= */}
 
       <Route
         path="/admin/menu"
@@ -417,6 +475,10 @@ function AppRoutes() {
         }
       />
 
+      {/* =================================================
+          ADMIN STAFF
+      ================================================= */}
+
       <Route
         path="/admin/staff"
         element={
@@ -432,7 +494,10 @@ function AppRoutes() {
         }
       />
 
-      {/* WAITER (MAIN LAYOUTSIZ - ALOHIDA MOBIL KORINISH) */}
+      {/* =================================================
+          WAITER TABLES
+      ================================================= */}
+
       <Route
         path="/waiter/tables"
         element={
@@ -446,6 +511,10 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* =================================================
+          WAITER ORDER
+      ================================================= */}
 
       <Route
         path="/waiter/order"
@@ -461,7 +530,10 @@ function AppRoutes() {
         }
       />
 
-      {/* CHEF (MAIN LAYOUTSIZ - ALOHIDA KORINISH) */}
+      {/* =================================================
+          CHEF
+      ================================================= */}
+
       <Route
         path="/chef/queue"
         element={
@@ -476,7 +548,10 @@ function AppRoutes() {
         }
       />
 
-      {/* CASHIER */}
+      {/* =================================================
+          CASHIER BILLING
+      ================================================= */}
+
       <Route
         path="/cashier/billing"
         element={
@@ -492,6 +567,10 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* =================================================
+          CASHIER PAYMENTS
+      ================================================= */}
 
       <Route
         path="/cashier/payments"
@@ -512,6 +591,10 @@ function AppRoutes() {
         }
       />
 
+      {/* =================================================
+          CASHIER RECEIPTS
+      ================================================= */}
+
       <Route
         path="/cashier/receipts"
         element={
@@ -531,6 +614,10 @@ function AppRoutes() {
         }
       />
 
+      {/* =================================================
+          CASHIER REPORTS
+      ================================================= */}
+
       <Route
         path="/cashier/reports"
         element={
@@ -546,6 +633,10 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* =================================================
+          CASHIER SETTINGS
+      ================================================= */}
 
       <Route
         path="/cashier/settings"
@@ -566,7 +657,10 @@ function AppRoutes() {
         }
       />
 
-      {/* NOT FOUND */}
+      {/* =================================================
+          NOT FOUND
+      ================================================= */}
+
       <Route
         path="*"
         element={
@@ -588,9 +682,11 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
+
       <AuthProvider>
 
         <ErrorBoundary>
+
           <AppRoutes />
 
           <ToastContainer
@@ -601,9 +697,11 @@ function App() {
             closeOnClick
             pauseOnHover
           />
+
         </ErrorBoundary>
 
       </AuthProvider>
+
     </BrowserRouter>
   );
 }

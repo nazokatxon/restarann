@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   collection,
   query,
@@ -10,21 +9,109 @@ import {
   deleteDoc,
   doc,
 } from "firebase/firestore";
+
 import { db } from "../../firebase/config.js";
 import { useAuth } from "../../context/AuthContext";
 
-export default function AdminMenu() {
-  const { cafeId, currentUser, logout } = useAuth();
-  const navigate = useNavigate();
+
+// =====================================================
+// KATEGORIYALAR
+// =====================================================
+
+const CATEGORIES = [
+  {
+    value: "Taom",
+    label: "🍲  Taom",
+    image:
+      "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=80",
+  },
+  {
+    value: "Salat",
+    label: "🥗  Salat",
+    image:
+      "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=80",
+  },
+  {
+    value: "Ichimlik",
+    label: "🥤  Ichimlik",
+    image:
+      "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=900&q=80",
+  },
+  {
+    value: "Desert",
+    label: "🍰  Desert",
+    image:
+      "https://images.unsplash.com/photo-1551024506-0bccd828d307?auto=format&fit=crop&w=900&q=80",
+  },
+];
+
+
+// =====================================================
+// DEFAULT RASM
+// =====================================================
+
+const getCategoryImage = (category) => {
+  const found = CATEGORIES.find(
+    (item) => item.value === category
+  );
+
+  return found?.image || CATEGORIES[0].image;
+};
+
+
+// =====================================================
+// KATEGORIYA EMOJISI
+// =====================================================
+
+const getCategoryEmoji = (category) => {
+  switch (category) {
+    case "Salat":
+      return "🥗";
+
+    case "Ichimlik":
+      return "🥤";
+
+    case "Desert":
+      return "🍰";
+
+    default:
+      return "🍲";
+  }
+};
+
+
+// =====================================================
+// FORMAT PRICE
+// =====================================================
+
+const formatPrice = (price) => {
+  return Number(price || 0).toLocaleString("uz-UZ");
+};
+
+
+// =====================================================
+// MAIN
+// =====================================================
+
+export default function MenuManager() {
+  const { cafeId } = useAuth();
+
+  // ---------------------------------------------------
+  // STATE
+  // ---------------------------------------------------
 
   const [menuItems, setMenuItems] = useState([]);
+
   const [loading, setLoading] = useState(true);
+
   const [modalOpen, setModalOpen] = useState(false);
+
   const [editingItem, setEditingItem] = useState(null);
 
-  // Chiqish va O'chirish uchun maxsus modal holatlari
-  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
-  const [deleteConfirmItem, setDeleteConfirmItem] = useState(null);
+  const [deleteConfirmItem, setDeleteConfirmItem] =
+    useState(null);
+
+  const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -33,316 +120,1151 @@ export default function AdminMenu() {
     imageUrl: "",
   });
 
-  // TIZIMDAN CHIQISH FUNKSIYASI
-  const confirmLogout = async () => {
-    try {
-      if (logout) await logout();
-      navigate("/login");
-    } catch (error) {
-      console.error("Chiqishda xatolik:", error);
-    } finally {
-      setLogoutModalOpen(false);
-    }
-  };
+
+  // ===================================================
+  // FIREBASE MENU
+  // ===================================================
 
   useEffect(() => {
-    if (!cafeId) return;
-
-    const q = query(collection(db, "menu"), where("cafeId", "==", cafeId));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
-      setMenuItems(items);
+    if (!cafeId) {
+      setMenuItems([]);
       setLoading(false);
-    });
+      return;
+    }
 
-    return () => unsub();
+    const menuQuery = query(
+      collection(db, "menu"),
+      where("cafeId", "==", cafeId)
+    );
+
+    const unsubscribe = onSnapshot(
+      menuQuery,
+      (snapshot) => {
+        const items = snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        }));
+
+        setMenuItems(items);
+        setLoading(false);
+      },
+      (error) => {
+        console.error(
+          "Menyu yuklashda xatolik:",
+          error
+        );
+
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
   }, [cafeId]);
 
+
+  // ===================================================
+  // FORM RESET
+  // ===================================================
+
   const resetForm = () => {
-    setForm({ name: "", price: "", category: "Taom", imageUrl: "" });
+    setForm({
+      name: "",
+      price: "",
+      category: "Taom",
+      imageUrl: "",
+    });
+
     setEditingItem(null);
+    setSaving(false);
   };
+
+
+  // ===================================================
+  // ADD MODAL
+  // ===================================================
 
   const openAddModal = () => {
     resetForm();
     setModalOpen(true);
   };
 
+
+  // ===================================================
+  // EDIT MODAL
+  // ===================================================
+
   const openEditModal = (item) => {
+    const category =
+      item.category || "Taom";
+
     setEditingItem(item);
+
     setForm({
       name: item.name || "",
-      price: item.price || "",
-      category: item.category || "Taom",
+      price:
+        item.price !== undefined
+          ? String(item.price)
+          : "",
+      category,
       imageUrl: item.imageUrl || "",
     });
+
     setModalOpen(true);
   };
 
+
+  // ===================================================
+  // CLOSE MODAL
+  // ===================================================
+
+  const closeModal = () => {
+    if (saving) return;
+
+    setModalOpen(false);
+    resetForm();
+  };
+
+
+  // ===================================================
+  // CATEGORY CHANGE
+  // ===================================================
+
+  const handleCategoryChange = (e) => {
+    const category = e.target.value;
+
+    setForm((prev) => ({
+      ...prev,
+      category,
+    }));
+  };
+
+
+  // ===================================================
+  // PREVIEW IMAGE
+  // ===================================================
+
+  const previewImage = useMemo(() => {
+    if (form.imageUrl.trim()) {
+      return form.imageUrl.trim();
+    }
+
+    return getCategoryImage(form.category);
+  }, [form.category, form.imageUrl]);
+
+
+  // ===================================================
+  // SUBMIT
+  // ===================================================
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.price) {
-      alert("Iltimos, nom va narxni kiriting!");
+
+    const name = form.name.trim();
+
+    const price = Number(form.price);
+
+    if (!name) {
+      alert("Iltimos, taom nomini kiriting!");
       return;
     }
 
+    if (!form.price || price <= 0) {
+      alert("Iltimos, to'g'ri narx kiriting!");
+      return;
+    }
+
+    if (!cafeId) {
+      alert("Kafe aniqlanmadi. Qaytadan tizimga kiring.");
+      return;
+    }
+
+    setSaving(true);
+
     try {
+      const imageUrl =
+        form.imageUrl.trim() ||
+        getCategoryImage(form.category);
+
       if (editingItem) {
-        await updateDoc(doc(db, "menu", editingItem.id), {
-          name: form.name,
-          price: Number(form.price),
-          category: form.category || "Taom",
-          imageUrl: form.imageUrl || "",
-        });
+        await updateDoc(
+          doc(db, "menu", editingItem.id),
+          {
+            name,
+            price,
+            category: form.category,
+            imageUrl,
+          }
+        );
       } else {
-        await addDoc(collection(db, "menu"), {
-          cafeId,
-          name: form.name,
-          price: Number(form.price),
-          category: form.category || "Taom",
-          imageUrl: form.imageUrl || "",
-          available: true,
-          createdAt: new Date(),
-        });
+        await addDoc(
+          collection(db, "menu"),
+          {
+            cafeId,
+            name,
+            price,
+            category: form.category,
+            imageUrl,
+            available: true,
+            createdAt: new Date(),
+          }
+        );
       }
 
       setModalOpen(false);
       resetForm();
     } catch (error) {
-      console.error("Saqlashda xatolik:", error);
+      console.error(
+        "Saqlashda xatolik:",
+        error
+      );
+
+      alert(
+        "Saqlashda xatolik yuz berdi. Qaytadan urinib ko'ring."
+      );
+    } finally {
+      setSaving(false);
     }
   };
+
+
+  // ===================================================
+  // DELETE
+  // ===================================================
 
   const confirmDeleteMeal = async () => {
     if (!deleteConfirmItem) return;
+
     try {
-      await deleteDoc(doc(db, "menu", deleteConfirmItem.id));
-    } catch (error) {
-      console.error("O'chirishda xatolik:", error);
-    } finally {
+      await deleteDoc(
+        doc(
+          db,
+          "menu",
+          deleteConfirmItem.id
+        )
+      );
+
       setDeleteConfirmItem(null);
+    } catch (error) {
+      console.error(
+        "O'chirishda xatolik:",
+        error
+      );
+
+      alert(
+        "O'chirishda xatolik yuz berdi."
+      );
     }
   };
 
+
+  // ===================================================
+  // SORT
+  // ===================================================
+
+  const sortedItems = useMemo(() => {
+    return [...menuItems].sort(
+      (a, b) =>
+        String(a.name || "").localeCompare(
+          String(b.name || "")
+        )
+    );
+  }, [menuItems]);
+
+
+  // ===================================================
+  // RENDER
+  // ===================================================
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 w-full flex flex-col font-sans">
-      {/* ASOSIY KONTENT */}
-      <main className="max-w-5xl w-full mx-auto p-4 sm:p-6 flex-1">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            📋 Menyu boshqaruvi
-          </h1>
-          <button
-            onClick={openAddModal}
-            className="bg-amber-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-amber-700 transition shadow-sm cursor-pointer"
-          >
-            + Yangi Taom
-          </button>
+    <div className="h-[calc(100vh-68px)] min-h-0 bg-slate-50 text-slate-800 w-full flex flex-col overflow-hidden">
+
+
+      {/* =================================================
+          HEADER
+      ================================================= */}
+
+      <div className="shrink-0 bg-slate-50 border-b border-slate-200">
+
+        <div className="w-full px-5 sm:px-8 lg:px-10 py-5">
+
+          <div className="flex items-center justify-between gap-4">
+
+            <div>
+
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 flex items-center gap-2">
+
+                <span>📋</span>
+
+                <span>
+                  Menyu boshqaruvi
+                </span>
+
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Kafe menyusidagi taomlarni boshqaring
+              </p>
+
+            </div>
+
+
+            {/* YANGI TAOM */}
+
+            <button
+              onClick={openAddModal}
+              className="
+                shrink-0
+                bg-amber-600
+                hover:bg-amber-700
+                text-white
+                px-5
+                py-3
+                rounded-xl
+                text-sm
+                font-bold
+                shadow-sm
+                transition
+                cursor-pointer
+              "
+            >
+              + Yangi Taom
+            </button>
+
+          </div>
+
         </div>
 
-        {loading ? (
-          <div className="text-center py-12 text-slate-400">Yuklanmoqda...</div>
-        ) : menuItems.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200">
-            Hali taomlar qo'shilmagan
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {menuItems.map((item) => (
-              <div
-                key={item.id}
-                className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between"
-              >
-                <div>
-                  {item.imageUrl ? (
-                    <img
-                      src={item.imageUrl}
-                      alt={item.name}
-                      className="w-full h-36 object-cover rounded-xl mb-3"
-                    />
-                  ) : (
-                    <div className="w-full h-36 bg-slate-100 rounded-xl mb-3 flex items-center justify-center text-3xl">
-                      🍲
-                    </div>
-                  )}
-                  <h3 className="font-bold text-slate-800 text-base">
-                    {item.name}
-                  </h3>
-                  <span className="text-xs text-slate-400 font-medium block mt-0.5">
-                    {item.category || "Taom"}
-                  </span>
-                  <p className="text-amber-600 font-extrabold text-lg mt-2">
-                    {Number(item.price).toLocaleString()} so'm
-                  </p>
+      </div>
+
+
+      {/* =================================================
+          ONLY FOOD SCROLL
+      ================================================= */}
+
+      <main className="flex-1 min-h-0 overflow-y-auto">
+
+        <div className="w-full px-5 sm:px-8 lg:px-10 py-6">
+
+
+          {/* =================================================
+              LOADING
+          ================================================= */}
+
+          {loading && (
+
+            <div className="flex items-center justify-center py-20">
+
+              <div className="text-center">
+
+                <div className="text-4xl mb-3">
+                  ☕
                 </div>
 
-                <div className="flex gap-2 pt-4 mt-2 border-t border-slate-100">
-                  <button
-                    onClick={() => openEditModal(item)}
-                    className="flex-1 bg-amber-50 text-amber-700 py-2 rounded-xl text-xs font-semibold hover:bg-amber-100 transition cursor-pointer flex items-center justify-center gap-1"
-                  >
-                    ✏️ Tahrirlash
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirmItem(item)}
-                    className="flex-1 bg-red-50 text-red-600 py-2 rounded-xl text-xs font-semibold hover:bg-red-100 transition cursor-pointer flex items-center justify-center gap-1"
-                  >
-                    🗑️ O'chirish
-                  </button>
-                </div>
+                <p className="text-slate-500 font-semibold">
+                  Menyu yuklanmoqda...
+                </p>
+
               </div>
-            ))}
-          </div>
-        )}
+
+            </div>
+
+          )}
+
+
+          {/* =================================================
+              EMPTY
+          ================================================= */}
+
+          {!loading &&
+            sortedItems.length === 0 && (
+
+              <div className="
+                bg-white
+                border
+                border-slate-200
+                rounded-2xl
+                p-10
+                text-center
+              ">
+
+                <div className="text-5xl mb-4">
+                  🍽️
+                </div>
+
+                <h2 className="text-xl font-bold text-slate-800">
+                  Hali taomlar qo'shilmagan
+                </h2>
+
+                <p className="text-sm text-slate-400 mt-2">
+                  Birinchi taomni qo'shish uchun
+                  yuqoridagi tugmani bosing.
+                </p>
+
+              </div>
+
+            )}
+
+
+          {/* =================================================
+              MENU GRID
+          ================================================= */}
+
+          {!loading &&
+            sortedItems.length > 0 && (
+
+              <div className="
+                grid
+                grid-cols-1
+                sm:grid-cols-2
+                xl:grid-cols-3
+                2xl:grid-cols-4
+                gap-5
+                pb-8
+              ">
+
+                {sortedItems.map((item) => {
+
+                  const category =
+                    item.category || "Taom";
+
+                  const image =
+                    item.imageUrl ||
+                    getCategoryImage(category);
+
+                  return (
+
+                    <div
+                      key={item.id}
+                      className="
+                        bg-white
+                        rounded-2xl
+                        border
+                        border-slate-200
+                        shadow-sm
+                        overflow-hidden
+                        flex
+                        flex-col
+                      "
+                    >
+
+                      {/* IMAGE */}
+
+                      <div className="
+                        relative
+                        w-full
+                        h-52
+                        bg-slate-100
+                        overflow-hidden
+                      ">
+
+                        <img
+                          src={image}
+                          alt={item.name}
+                          className="
+                            w-full
+                            h-full
+                            object-cover
+                          "
+                          onError={(e) => {
+                            e.currentTarget.src =
+                              getCategoryImage(category);
+                          }}
+                        />
+
+
+                        {/* CATEGORY BADGE */}
+
+                        <div className="
+                          absolute
+                          top-3
+                          left-3
+                          bg-white
+                          px-3
+                          py-1.5
+                          rounded-xl
+                          shadow-sm
+                          text-xs
+                          font-bold
+                          text-slate-700
+                        ">
+
+                          {getCategoryEmoji(category)}{" "}
+                          {category}
+
+                        </div>
+
+                      </div>
+
+
+                      {/* CONTENT */}
+
+                      <div className="p-4 flex flex-col flex-1">
+
+                        <h3 className="
+                          font-black
+                          text-lg
+                          text-slate-900
+                        ">
+                          {item.name}
+                        </h3>
+
+
+                        <p className="
+                          text-sm
+                          text-slate-400
+                          mt-1
+                        ">
+                          {getCategoryEmoji(category)}{" "}
+                          {category}
+                        </p>
+
+
+                        <p className="
+                          text-amber-600
+                          font-black
+                          text-xl
+                          mt-3
+                        ">
+                          {formatPrice(item.price)} so'm
+                        </p>
+
+
+                        {/* BUTTONS */}
+
+                        <div className="
+                          flex
+                          gap-2
+                          mt-4
+                          pt-4
+                          border-t
+                          border-slate-100
+                        ">
+
+                          <button
+                            onClick={() =>
+                              openEditModal(item)
+                            }
+                            className="
+                              flex-1
+                              bg-amber-50
+                              hover:bg-amber-100
+                              text-amber-700
+                              py-2.5
+                              rounded-xl
+                              text-sm
+                              font-bold
+                              transition
+                              cursor-pointer
+                            "
+                          >
+                            ✏️ Tahrirlash
+                          </button>
+
+
+                          <button
+                            onClick={() =>
+                              setDeleteConfirmItem(item)
+                            }
+                            className="
+                              flex-1
+                              bg-red-50
+                              hover:bg-red-100
+                              text-red-600
+                              py-2.5
+                              rounded-xl
+                              text-sm
+                              font-bold
+                              transition
+                              cursor-pointer
+                            "
+                          >
+                            🗑️ O'chirish
+                          </button>
+
+                        </div>
+
+                      </div>
+
+                    </div>
+
+                  );
+
+                })}
+
+              </div>
+
+            )}
+
+        </div>
+
       </main>
 
-      {/* TAOM QO'SHISH / TAHRIRLASH MODALI */}
+
+      {/* =================================================
+          ADD / EDIT MODAL
+      ================================================= */}
+
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-bold mb-4 text-slate-800">
-              {editingItem ? "Taomni tahrirlash" : "Yangi taom qo'shish"}
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-3">
+
+        <div className="
+          fixed
+          inset-0
+          z-[100]
+          bg-black/50
+          backdrop-blur-sm
+          flex
+          items-center
+          justify-center
+          p-4
+        ">
+
+          <div className="
+            bg-white
+            rounded-[22px]
+            shadow-2xl
+            w-full
+            max-w-[590px]
+            max-h-[95vh]
+            overflow-y-auto
+          ">
+
+
+            {/* MODAL HEADER */}
+
+            <div className="
+              sticky
+              top-0
+              z-10
+              bg-white
+              border-b
+              border-slate-100
+              px-6
+              py-5
+            ">
+
+              <div className="flex items-start justify-between gap-4">
+
+                <div>
+
+                  <h2 className="
+                    text-2xl
+                    font-black
+                    text-slate-800
+                  ">
+                    {editingItem
+                      ? "Taomni tahrirlash"
+                      : "Yangi taom qo'shish"}
+                  </h2>
+
+                  <p className="
+                    text-sm
+                    text-slate-400
+                    mt-1
+                  ">
+                    Taom ma'lumotlarini kiriting
+                  </p>
+
+                </div>
+
+
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  disabled={saving}
+                  className="
+                    w-11
+                    h-11
+                    rounded-xl
+                    bg-slate-50
+                    hover:bg-slate-100
+                    text-slate-500
+                    text-2xl
+                    flex
+                    items-center
+                    justify-center
+                    cursor-pointer
+                    disabled:opacity-50
+                  "
+                >
+                  ×
+                </button>
+
+              </div>
+
+            </div>
+
+
+            {/* MODAL BODY */}
+
+            <form
+              onSubmit={handleSubmit}
+              className="px-6 py-6 space-y-5"
+            >
+
+
+              {/* TAOM NOMI */}
+
               <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">
+
+                <label className="
+                  block
+                  text-sm
+                  font-bold
+                  text-slate-700
+                  mb-2
+                ">
                   Taom nomi
                 </label>
+
                 <input
                   type="text"
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white text-slate-800"
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      name: e.target.value,
+                    })
+                  }
+                  className="
+                    w-full
+                    h-14
+                    px-4
+                    border
+                    border-slate-300
+                    rounded-2xl
+                    outline-none
+                    text-slate-800
+                    focus:border-amber-500
+                    focus:ring-2
+                    focus:ring-amber-100
+                    transition
+                  "
                   placeholder="Masalan: Somsa"
                 />
+
               </div>
+
+
+              {/* PRICE */}
+
               <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">
+
+                <label className="
+                  block
+                  text-sm
+                  font-bold
+                  text-slate-700
+                  mb-2
+                ">
                   Narxi (so'm)
                 </label>
+
                 <input
                   type="number"
+                  min="0"
                   value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white text-slate-800"
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      price: e.target.value,
+                    })
+                  }
+                  className="
+                    w-full
+                    h-14
+                    px-4
+                    border
+                    border-slate-300
+                    rounded-2xl
+                    outline-none
+                    text-slate-800
+                    focus:border-amber-500
+                    focus:ring-2
+                    focus:ring-amber-100
+                    transition
+                  "
                   placeholder="Masalan: 15000"
                 />
+
               </div>
+
+
+              {/* CATEGORY */}
+
               <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">
-                  Kategoriya
+
+                <label className="
+                  block
+                  text-sm
+                  font-bold
+                  text-slate-700
+                  mb-2
+                ">
+                  Taom turi
                 </label>
-                <input
-                  type="text"
+
+                <select
                   value={form.category}
-                  onChange={(e) =>
-                    setForm({ ...form, category: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white text-slate-800"
-                  placeholder="Taom, Salat, Ichimlik va h.k."
-                />
+                  onChange={handleCategoryChange}
+                  className="
+                    w-full
+                    h-14
+                    px-4
+                    border
+                    border-slate-300
+                    rounded-2xl
+                    outline-none
+                    bg-white
+                    text-slate-800
+                    font-medium
+                    focus:border-amber-500
+                    focus:ring-2
+                    focus:ring-amber-100
+                    cursor-pointer
+                  "
+                >
+
+                  {CATEGORIES.map(
+                    (category) => (
+
+                      <option
+                        key={category.value}
+                        value={category.value}
+                      >
+                        {category.label}
+                      </option>
+
+                    )
+                  )}
+
+                </select>
+
               </div>
+
+
+              {/* IMAGE URL */}
+
               <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">
+
+                <label className="
+                  block
+                  text-sm
+                  font-bold
+                  text-slate-700
+                  mb-2
+                ">
                   Rasm havolasi (URL)
                 </label>
+
                 <input
                   type="text"
                   value={form.imageUrl}
                   onChange={(e) =>
-                    setForm({ ...form, imageUrl: e.target.value })
+                    setForm({
+                      ...form,
+                      imageUrl: e.target.value,
+                    })
                   }
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white text-slate-800"
+                  className="
+                    w-full
+                    h-14
+                    px-4
+                    border
+                    border-slate-300
+                    rounded-2xl
+                    outline-none
+                    text-slate-800
+                    focus:border-amber-500
+                    focus:ring-2
+                    focus:ring-amber-100
+                    transition
+                  "
                   placeholder="https://..."
                 />
+
+                <p className="
+                  text-xs
+                  text-slate-400
+                  mt-2
+                ">
+                  URL kiritilmasa, tanlangan taom turiga
+                  mos taxminiy rasm ishlatiladi.
+                </p>
+
               </div>
-              <div className="flex gap-2 pt-2">
+
+
+              {/* IMAGE PREVIEW */}
+
+              <div>
+
+                <div className="
+                  flex
+                  items-center
+                  justify-between
+                  mb-2
+                ">
+
+                  <label className="
+                    text-sm
+                    font-bold
+                    text-slate-700
+                  ">
+                    Rasm ko'rinishi
+                  </label>
+
+                  <span className="
+                    text-xs
+                    font-bold
+                    text-amber-600
+                  ">
+                    {getCategoryEmoji(form.category)}{" "}
+                    {form.category}
+                  </span>
+
+                </div>
+
+
+                <div className="
+                  relative
+                  w-full
+                  h-52
+                  rounded-2xl
+                  overflow-hidden
+                  bg-slate-100
+                  border
+                  border-slate-200
+                ">
+
+                  <img
+                    src={previewImage}
+                    alt="Taom rasmi"
+                    className="
+                      w-full
+                      h-full
+                      object-cover
+                    "
+                    onError={(e) => {
+                      e.currentTarget.src =
+                        getCategoryImage(form.category);
+                    }}
+                  />
+
+
+                  {/* PREVIEW BADGE */}
+
+                  <div className="
+                    absolute
+                    top-3
+                    left-3
+                    bg-white
+                    px-4
+                    py-2
+                    rounded-xl
+                    shadow-md
+                    text-sm
+                    font-bold
+                    text-slate-700
+                  ">
+                    {getCategoryEmoji(form.category)}{" "}
+                    {form.category}
+                  </div>
+
+                </div>
+
+              </div>
+
+
+              {/* BUTTONS */}
+
+              <div className="
+                flex
+                gap-3
+                pt-2
+              ">
+
                 <button
                   type="submit"
-                  className="flex-1 bg-amber-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-amber-700 transition cursor-pointer"
+                  disabled={saving}
+                  className="
+                    flex-1
+                    h-14
+                    bg-amber-600
+                    hover:bg-amber-700
+                    disabled:bg-amber-400
+                    text-white
+                    rounded-2xl
+                    text-base
+                    font-black
+                    transition
+                    cursor-pointer
+                    disabled:cursor-not-allowed
+                  "
                 >
-                  {editingItem ? "Yangilash" : "Saqlash"}
+                  {saving
+                    ? "Saqlanmoqda..."
+                    : editingItem
+                    ? "Yangilash"
+                    : "Saqlash"}
                 </button>
+
+
                 <button
                   type="button"
-                  onClick={() => {
-                    setModalOpen(false);
-                    resetForm();
-                  }}
-                  className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 transition cursor-pointer"
+                  onClick={closeModal}
+                  disabled={saving}
+                  className="
+                    flex-1
+                    h-14
+                    bg-white
+                    border
+                    border-slate-200
+                    hover:bg-slate-50
+                    text-slate-600
+                    rounded-2xl
+                    text-base
+                    font-bold
+                    transition
+                    cursor-pointer
+                    disabled:opacity-50
+                  "
                 >
                   Bekor qilish
                 </button>
+
               </div>
+
             </form>
+
           </div>
+
         </div>
+
       )}
 
-      {/* CHIQUVCHI ZAMONAVIY CHIQISH (LOGOUT) MODAL OYNASI */}
-      {logoutModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
-            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
-              🚪
-            </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-1">
-              Tizimdan chiqmoqchimisiz?
-            </h3>
-            <p className="text-xs text-slate-500 mb-6">
-              Hisobingizdan chiqib ketasiz va qayta kirish talab etiladi.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={confirmLogout}
-                className="flex-1 bg-red-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 transition cursor-pointer"
-              >
-                Ha, Chiqish
-              </button>
-              <button
-                onClick={() => setLogoutModalOpen(false)}
-                className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 transition cursor-pointer"
-              >
-                Bekor qilish
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* TAOMNI O'CHIRISH TASDIQLASH MODALI */}
+      {/* =================================================
+          DELETE MODAL
+      ================================================= */}
+
       {deleteConfirmItem && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
-            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
-              ⚠️
+
+        <div className="
+          fixed
+          inset-0
+          z-[110]
+          bg-black/50
+          backdrop-blur-sm
+          flex
+          items-center
+          justify-center
+          p-4
+        ">
+
+          <div className="
+            bg-white
+            rounded-2xl
+            shadow-2xl
+            w-full
+            max-w-sm
+            p-6
+            text-center
+          ">
+
+            <div className="
+              w-14
+              h-14
+              mx-auto
+              rounded-2xl
+              bg-red-50
+              flex
+              items-center
+              justify-center
+              text-2xl
+              mb-4
+            ">
+              🗑️
             </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-1">
+
+
+            <h3 className="
+              text-xl
+              font-black
+              text-slate-800
+            ">
               Taomni o'chirish
             </h3>
-            <p className="text-xs text-slate-500 mb-6">
-              Siz rostdan ham <strong>"{deleteConfirmItem.name}"</strong> taomini o'chirmoqchimisiz?
+
+
+            <p className="
+              text-sm
+              text-slate-500
+              mt-2
+              leading-6
+            ">
+
+              Siz rostdan ham{" "}
+
+              <strong className="text-slate-700">
+                "{deleteConfirmItem.name}"
+              </strong>
+
+              {" "}taomini o'chirmoqchimisiz?
+
             </p>
-            <div className="flex gap-2">
+
+
+            <div className="
+              flex
+              gap-3
+              mt-6
+            ">
+
               <button
                 onClick={confirmDeleteMeal}
-                className="flex-1 bg-red-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 transition cursor-pointer"
+                className="
+                  flex-1
+                  h-12
+                  bg-red-600
+                  hover:bg-red-700
+                  text-white
+                  rounded-xl
+                  font-bold
+                  cursor-pointer
+                "
               >
                 O'chirish
               </button>
+
+
               <button
-                onClick={() => setDeleteConfirmItem(null)}
-                className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 transition cursor-pointer"
+                onClick={() =>
+                  setDeleteConfirmItem(null)
+                }
+                className="
+                  flex-1
+                  h-12
+                  border
+                  border-slate-200
+                  bg-white
+                  hover:bg-slate-50
+                  text-slate-600
+                  rounded-xl
+                  font-bold
+                  cursor-pointer
+                "
               >
                 Bekor qilish
               </button>
+
             </div>
+
           </div>
+
         </div>
+
       )}
+
     </div>
   );
 }
