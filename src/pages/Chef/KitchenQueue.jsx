@@ -272,7 +272,7 @@ const KitchenQueue = () => {
     }, {})
   ).sort((a, b) => Number(a.tableNumber) - Number(b.tableNumber));
 
-  // TUGMA BOSILGANDA TAYYOR QILISH VA TUSHIB QOLISHI
+  // TUGMA BOSILGANDA TAYYOR QILISH VA OSHPAZ RO‘YXATIDAN YO‘QOTISH
   const handleItemReadyToggle = async (order, itemIndex) => {
     try {
       let fieldName = "kitchenItems";
@@ -290,15 +290,19 @@ const KitchenQueue = () => {
       }
 
       const updatedItems = [...rawItems];
+
       if (updatedItems[itemIndex]) {
+        // Bir marta bosilganda taom tayyor bo'ladi.
+        // Qayta bosib holatni orqaga qaytarish yo'q.
         updatedItems[itemIndex] = {
           ...updatedItems[itemIndex],
           isReady: true,
         };
       }
 
-      const remainingItems = updatedItems.filter((item) => !item.isReady);
-      const isAllDone = remainingItems.length === 0;
+      const isAllDone =
+        updatedItems.length > 0 &&
+        updatedItems.every((item) => Boolean(item.isReady));
 
       const updatePayload = {
         [fieldName]: updatedItems,
@@ -306,12 +310,25 @@ const KitchenQueue = () => {
       };
 
       if (isAllDone) {
+        // Barcha taomlar tayyor bo'lsa, afitsiantga ham shu status yuboriladi.
         updatePayload.kitchenStatus = "ready";
         updatePayload.status = "ready";
+      } else {
+        // Bitta taom qayta ochilsa, buyurtma yana tayyorlanmoqda holatiga qaytadi.
+        updatePayload.kitchenStatus = "preparing";
+        updatePayload.status = "preparing";
       }
 
       await updateDoc(doc(db, "orders", order.id), updatePayload);
-      toast.success("Tayyor deb belgilandi!", { autoClose: 1500 });
+
+      // Taom tayyor bo‘lgach oshpaz ro‘yxatidan yo‘qoladi.
+      // Barcha taomlar tayyor bo‘lsa kitchenStatus=ready bo‘ladi va
+      // afitsiant tomoni tayyor xabarini oladi.
+
+      toast.success(
+        isAllDone ? "✅ Buyurtma tayyor! Afitsiantga yuborildi." : "🍽️ Taom tayyor!",
+        { autoClose: 1500 }
+      );
     } catch (error) {
       console.error("Xatolik:", error);
       toast.error("Xatolik yuz berdi!");
@@ -607,12 +624,14 @@ const KitchenQueue = () => {
 
                   {/* TAOMLAR */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {allItems.length === 0 ? (
+                    {allItems.filter((item) => !item.isReady).length === 0 ? (
                       <div style={{ padding: "12px", color: "#64748b", fontSize: "14px" }}>
                         Xabarnoma: Ushbu stol buyurtmasida taomlar ro'yxati topilmadi.
                       </div>
                     ) : (
-                      allItems.map((item, idx) => (
+                      allItems
+                        .filter((item) => !item.isReady)
+                        .map((item, idx) => (
                         <div
                           key={`${item.parentOrder.id}-${idx}`}
                           style={{
@@ -629,43 +648,29 @@ const KitchenQueue = () => {
                           </div>
 
                           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                            <span
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleItemReadyToggle(
+                                  item.parentOrder,
+                                  item.originalIndex
+                                )
+                              }
                               style={{
-                                background: item.isReady ? "#dcfce7" : "#e0f2fe",
-                                color: item.isReady ? "#15803d" : "#2563eb",
-                                padding: "4px 12px",
-                                borderRadius: "12px",
-                                fontSize: "13px",
-                                fontWeight: "600",
+                                background: "#e0f2fe",
+                                color: "#2563eb",
+                                border: "1px solid #bfdbfe",
+                                borderRadius: "10px",
+                                padding: "8px 16px",
+                                fontWeight: "800",
+                                fontSize: "14px",
+                                cursor: "pointer",
+                                minWidth: "128px",
+                                boxShadow: "none",
                               }}
                             >
-                              {item.isReady ? "Tayyor" : t.preparing}
-                            </span>
-
-                            {!item.isReady && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleItemReadyToggle(
-                                    item.parentOrder,
-                                    item.originalIndex
-                                  )
-                                }
-                                style={{
-                                  background: "#16a34a",
-                                  color: "#ffffff",
-                                  border: "none",
-                                  borderRadius: "8px",
-                                  padding: "8px 18px",
-                                  fontWeight: "700",
-                                  fontSize: "14px",
-                                  cursor: "pointer",
-                                  boxShadow: "0 2px 4px rgba(22, 163, 74, 0.2)",
-                                }}
-                              >
-                                {t.readyBtn}
-                              </button>
-                            )}
+                              Tayyorlanmoqda
+                            </button>
 
                             <span
                               style={{

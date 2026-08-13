@@ -36,6 +36,10 @@ export default function OrderForm() {
 
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [isSoundOn, setIsSoundOn] = useState(true);
+  const [readyNotification, setReadyNotification] = useState(null);
+  const readyNotificationTimerRef = useRef(null);
+  const readyNotificationQueueRef = useRef([]);
+  const readyNotifiedIdsRef = useRef(new Set());
 
   // ⭐ FIX: AudioContext faqat bir marta yaratiladi va useRef'da saqlanadi
   const audioContextRef = useRef(null);
@@ -52,86 +56,118 @@ export default function OrderForm() {
   // 🔊 OVOZ CHIQARISH ("Tayyor" bo'lganda)
   const playReadySound = async () => {
     if (!isSoundOn) return;
+
     try {
       const ctx = getAudioContext();
-      if (ctx && ctx.state === "suspended") {
+      if (!ctx) return;
+
+      if (ctx.state === "suspended") {
         await ctx.resume();
       }
-      const audio = new Audio(
-        "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
-      );
-      audio.volume = 1.0;
-      await audio.play();
+
+      // Tashqi MP3 o'rniga Web Audio ishlatamiz — internet bo'lmasa ham signal beradi.
+      const now = ctx.currentTime;
+      const beep = (offset, frequency, duration = 0.22) => {
+        const oscillator = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(frequency, now + offset);
+
+        gain.gain.setValueAtTime(0.0001, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.55, now + offset + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + duration);
+
+        oscillator.connect(gain);
+        gain.connect(ctx.destination);
+        oscillator.start(now + offset);
+        oscillator.stop(now + offset + duration + 0.03);
+      };
+
+      beep(0, 880, 0.25);
+      beep(0.32, 1046, 0.25);
+      beep(0.64, 880, 0.32);
     } catch (e) {
       console.log("Audio play error:", e);
     }
   };
 
   // =========================================================
-  // 🔔 "TAYYOR" BO'LGAN BUYURTMALARNI TINGLASH (oshpaz tayyor qilganda)
+  // 🔔 OSHPAZ TAYYOR QILGAN BUYURTMALARNI BARCHA STOLLARDAN TINGLASH
   // =========================================================
   useEffect(() => {
-    const unlockAudio = () => {
-      const ctx = getAudioContext();
-      if (ctx && ctx.state === "suspended") {
-        ctx.resume();
-      }
-    };
-
-    window.addEventListener("click", unlockAudio);
-    window.addEventListener("touchstart", unlockAudio);
-
-    if ("Notification" in window && Notification.permission !== "granted") {
-      Notification.requestPermission();
-    }
+    if (!cafeId) return;
 
     const ordersRef = collection(db, "orders");
-    const q = query(
-      ordersRef,
-      where("tableNumber", "==", Number(tableNumber)),
-      where("kitchenStatus", "==", "ready")
-    );
+    const q = query(ordersRef, where("cafeId", "==", cafeId));
+    let firstSnapshot = true;
+
+    const queueReadyNotification = (orderData, orderId) => {
+      readyNotificationQueueRef.current.push({
+        id: orderId,
+        tableNumber: orderData.tableNumber ?? "?",
+      });
+    };
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
+        // Dastlabki snapshotdagi eski "ready" buyurtmalar ovoz chiqarmaydi.
+        if (firstSnapshot) {
+          firstSnapshot = false;
+          return;
+        }
+
         snapshot.docChanges().forEach((change) => {
-          if (change.type === "modified") {
-            const orderData = change.doc.data();
+          if (change.type !== "modified" && change.type !== "added") return;
 
-            playReadySound();
+          const orderData = change.doc.data();
+          const orderId = change.doc.id;
 
-            if ("Notification" in window && Notification.permission === "granted") {
-              new Notification(`🔔 Stol №${orderData.tableNumber} taomi tayyor!`, {
-                body: "Oshxonadan taomni olib ketishingiz mumkin.",
-                icon: "/favicon.ico",
-                vibrate: [200, 100, 200],
-              });
-            }
-
-            toast.dismiss();
-            toast.success(`🔔 Stol №${orderData.tableNumber} taomi tayyor!`, {
-              toastId: `ready-${change.doc.id}`,
-              autoClose: 2000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: false,
-            });
+          // "ready"dan boshqa holatga o'tsa, keyinchalik yana tayyor bo'lganda xabar beramiz.
+          if (orderData.kitchenStatus !== "ready") {
+            readyNotifiedIdsRef.current.delete(orderId);
+            return;
           }
+
+          // Bir xil tayyor buyurtma qayta yangilanganda qayta-qayta signal bermaydi.
+          if (readyNotifiedIdsRef.current.has(orderId)) return;
+
+          readyNotifiedIdsRef.current.add(orderId);
+          queueReadyNotification(orderData, orderId);
         });
       },
       (error) => {
-        // ⭐ FIX: xatolikni ham konsolga, ham foydalanuvchiga ko'rsatish
         console.error("❌ 'ready' listener xatosi:", error);
       }
     );
 
     return () => {
-      window.removeEventListener("click", unlockAudio);
-      window.removeEventListener("touchstart", unlockAudio);
       unsubscribe();
+      if (readyNotificationTimerRef.current) {
+        clearTimeout(readyNotificationTimerRef.current);
+      }
     };
-  }, [tableNumber, isSoundOn]);
+  }, [cafeId, isSoundOn]);
+
+  // Navbatdagi tayyor stol xabarini chiqarish.
+  useEffect(() => {
+    if (readyNotification || readyNotificationQueueRef.current.length === 0) return;
+
+    const nextNotification = readyNotificationQueueRef.current.shift();
+    if (!nextNotification) return;
+
+    setReadyNotification(nextNotification);
+    playReadySound();
+
+    if (readyNotificationTimerRef.current) {
+      clearTimeout(readyNotificationTimerRef.current);
+    }
+
+    readyNotificationTimerRef.current = setTimeout(() => {
+      setReadyNotification(null);
+    }, 3500);
+  }, [readyNotification]);
 
   // =========================================================
   // 1. SHU STOLDA MAVJUD BUYURTMANI AVTOMATIK QIDIRIB OLISH
@@ -432,7 +468,27 @@ export default function OrderForm() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans select-none pb-28 antialiased">
+    <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans select-none pb-28 antialiased relative overflow-x-hidden">
+      {/* 🔔 KICHKINA YON NOTIFICATION — MENYUNI TO'SMAYDI */}
+      {readyNotification && (
+        <button
+          type="button"
+          onClick={() => {
+            setReadyNotification(null);
+            if (readyNotificationTimerRef.current) {
+              clearTimeout(readyNotificationTimerRef.current);
+            }
+            navigate("/waiter/tables");
+          }}
+          className="fixed top-24 right-2 z-[60] w-[145px] bg-[#123d2d] text-white rounded-xl shadow-xl border border-emerald-700/50 px-2 py-2 flex items-center gap-1.5 animate-slide-in-right active:scale-95 transition"
+        >
+          <span className="w-7 h-7 rounded-lg bg-amber-400 text-[#123d2d] flex items-center justify-center text-sm shrink-0">🔔</span>
+          <span className="min-w-0 text-left text-[10px] font-black truncate">
+            {readyNotification.tableNumber}-STOL — TAYYOR!
+          </span>
+        </button>
+      )}
+
       {/* 📌 TEPADA FIX / STICKY TURADIGAN HEADER */}
       <header className="sticky top-0 z-20 bg-white shadow-xs flex flex-col border-b border-slate-200">
         {/* Tepadagi Panel: Logo, Ovoz va Chiqish */}
@@ -443,10 +499,10 @@ export default function OrderForm() {
             </div>
             <div>
               <h2 className="font-black text-slate-800 text-sm leading-tight">
-                AJ Cafe
+                KARAVAN KAFE
               </h2>
               <p className="text-[10px] font-bold text-slate-400">
-                Ofitsiant paneli
+                Ofitsiant
               </p>
             </div>
           </div>
@@ -458,10 +514,10 @@ export default function OrderForm() {
                 isSoundOn
                   ? "bg-amber-500 hover:bg-amber-600 text-white"
                   : "bg-slate-200 text-slate-600"
-              } font-extrabold text-xs px-3.5 py-2.5 rounded-2xl shadow-md flex items-center gap-1.5 transition active:scale-95`}
+              } font-extrabold text-xs w-10 h-10 rounded-2xl shadow-md flex items-center justify-center transition active:scale-95`}
+              title={isSoundOn ? "Ovoz yoqilgan" : "Ovoz o'chirilgan"}
             >
-              <span>{isSoundOn ? "🔔" : "🔕"}</span>
-              <span>{isSoundOn ? "Ovozni Yoqilgan" : "Ovoz Yoqish"}</span>
+              <span className="text-base">{isSoundOn ? "🔔" : "🔕"}</span>
             </button>
 
             <button
@@ -635,6 +691,14 @@ export default function OrderForm() {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(110%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        .animate-slide-in-right { animation: slideInRight .28s ease-out both; }
+      `}</style>
 
       {/* SAVAT MODALI */}
       {isCartModalOpen && (
