@@ -286,34 +286,24 @@ function MainLayout({
     role === "kassir";
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 flex">
       <Sidebar />
 
-      <div className="app-main">
-        {/* =========================================
-            HEADER
-        ========================================= */}
-
-        <header className="app-navbar sticky top-0 z-50">
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* HEADER */}
+        <header className="sticky top-0 z-50 bg-white border-b border-slate-200">
           <Navbar />
         </header>
 
-        {/* =========================================
-            CASHIER TOP MENU
-            FAQAT KASSIR UCHUN
-        ========================================= */}
-
+        {/* CASHIER TOP MENU */}
         {isCashier && (
           <div className="sticky top-[68px] z-40">
             <CashierTopNav />
           </div>
         )}
 
-        {/* =========================================
-            PAGE CONTENT
-        ========================================= */}
-
-        <main className="app-content">
+        {/* PAGE CONTENT */}
+        <main className="flex-1 bg-slate-50 w-full">
           {children}
         </main>
       </div>
@@ -368,28 +358,19 @@ function AppRoutes() {
   return (
     <Routes>
 
-      {/* =========================================
-          LOGIN
-      ========================================= */}
-
+      {/* LOGIN */}
       <Route
         path="/login"
         element={<Login />}
       />
 
-      {/* =========================================
-          ROOT
-      ========================================= */}
-
+      {/* ROOT REDIRECT */}
       <Route
         path="/"
         element={<RoleRedirect />}
       />
 
-      {/* =========================================
-          BIG ADMIN
-      ========================================= */}
-
+      {/* BIG ADMIN */}
       <Route
         path="/bigadmin/cafes"
         element={
@@ -405,10 +386,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =========================================
-          ADMIN
-      ========================================= */}
-
+      {/* ADMIN */}
       <Route
         path="/admin/analytics"
         element={
@@ -454,10 +432,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =========================================
-          WAITER
-      ========================================= */}
-
+      {/* WAITER (MAIN LAYOUTSIZ - ALOHIDA MOBIL KORINISH) */}
       <Route
         path="/waiter/tables"
         element={
@@ -467,9 +442,7 @@ function AppRoutes() {
               "ofitsiant",
             ]}
           >
-            <MainLayout>
-              <TableGrid />
-            </MainLayout>
+            <TableGrid />
           </ProtectedRoute>
         }
       />
@@ -483,17 +456,12 @@ function AppRoutes() {
               "ofitsiant",
             ]}
           >
-            <MainLayout>
-              <OrderForm />
-            </MainLayout>
+            <OrderForm />
           </ProtectedRoute>
         }
       />
 
-      {/* =========================================
-          CHEF
-      ========================================= */}
-
+      {/* CHEF (MAIN LAYOUTSIZ - ALOHIDA KORINISH) */}
       <Route
         path="/chef/queue"
         element={
@@ -503,17 +471,12 @@ function AppRoutes() {
               "oshpaz",
             ]}
           >
-            <MainLayout>
-              <KitchenQueue />
-            </MainLayout>
+            <KitchenQueue />
           </ProtectedRoute>
         }
       />
 
-      {/* =========================================
-          CASHIER - BUYURTMALAR
-      ========================================= */}
-
+      {/* CASHIER */}
       <Route
         path="/cashier/billing"
         element={
@@ -529,10 +492,6 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-
-      {/* =========================================
-          CASHIER - TO'LOVLAR
-      ========================================= */}
 
       <Route
         path="/cashier/payments"
@@ -553,10 +512,6 @@ function AppRoutes() {
         }
       />
 
-      {/* =========================================
-          CASHIER - CHEKLAR
-      ========================================= */}
-
       <Route
         path="/cashier/receipts"
         element={
@@ -576,10 +531,6 @@ function AppRoutes() {
         }
       />
 
-      {/* =========================================
-          CASHIER - HISOBOTLAR
-      ========================================= */}
-
       <Route
         path="/cashier/reports"
         element={
@@ -595,10 +546,6 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-
-      {/* =========================================
-          CASHIER - SOZLAMALAR
-      ========================================= */}
 
       <Route
         path="/cashier/settings"
@@ -619,10 +566,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =========================================
-          NOT FOUND
-      ========================================= */}
-
+      {/* NOT FOUND */}
       <Route
         path="*"
         element={

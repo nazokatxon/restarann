@@ -37,20 +37,29 @@ export default function OrderForm() {
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [isSoundOn, setIsSoundOn] = useState(true);
 
+  // ⭐ FIX: AudioContext faqat bir marta yaratiladi va useRef'da saqlanadi
   const audioContextRef = useRef(null);
 
-  // 🔊 OVOZ CHIQARISH
+  const getAudioContext = () => {
+    if (!audioContextRef.current) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return null;
+      audioContextRef.current = new AudioCtx();
+    }
+    return audioContextRef.current;
+  };
+
+  // 🔊 OVOZ CHIQARISH ("Tayyor" bo'lganda)
   const playReadySound = async () => {
     if (!isSoundOn) return;
     try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      const ctx = audioContextRef.current;
-      if (ctx.state === "suspended") {
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === "suspended") {
         await ctx.resume();
       }
-      const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+      const audio = new Audio(
+        "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+      );
       audio.volume = 1.0;
       await audio.play();
     } catch (e) {
@@ -59,15 +68,13 @@ export default function OrderForm() {
   };
 
   // =========================================================
-  // 🔔 BIRIN-KETIN CHIQIB YO'QOLADIGAN BILDIRISHNOMA
+  // 🔔 "TAYYOR" BO'LGAN BUYURTMALARNI TINGLASH (oshpaz tayyor qilganda)
   // =========================================================
   useEffect(() => {
     const unlockAudio = () => {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (audioContextRef.current.state === "suspended") {
-        audioContextRef.current.resume();
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === "suspended") {
+        ctx.resume();
       }
     };
 
@@ -85,32 +92,39 @@ export default function OrderForm() {
       where("kitchenStatus", "==", "ready")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === "modified") {
-          const orderData = change.doc.data();
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "modified") {
+            const orderData = change.doc.data();
 
-          playReadySound();
+            playReadySound();
 
-          if ("Notification" in window && Notification.permission === "granted") {
-            new Notification(`🔔 Stol №${orderData.tableNumber} taomi tayyor!`, {
-              body: "Oshxonadan taomni olib ketishingiz mumkin.",
-              icon: "/favicon.ico",
-              vibrate: [200, 100, 200],
+            if ("Notification" in window && Notification.permission === "granted") {
+              new Notification(`🔔 Stol №${orderData.tableNumber} taomi tayyor!`, {
+                body: "Oshxonadan taomni olib ketishingiz mumkin.",
+                icon: "/favicon.ico",
+                vibrate: [200, 100, 200],
+              });
+            }
+
+            toast.dismiss();
+            toast.success(`🔔 Stol №${orderData.tableNumber} taomi tayyor!`, {
+              toastId: `ready-${change.doc.id}`,
+              autoClose: 2000,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: false,
             });
           }
-
-          toast.dismiss();
-          toast.success(`🔔 Stol №${orderData.tableNumber} taomi tayyor!`, {
-            toastId: `ready-${change.doc.id}`,
-            autoClose: 2000,
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: false,
-          });
-        }
-      });
-    });
+        });
+      },
+      (error) => {
+        // ⭐ FIX: xatolikni ham konsolga, ham foydalanuvchiga ko'rsatish
+        console.error("❌ 'ready' listener xatosi:", error);
+      }
+    );
 
     return () => {
       window.removeEventListener("click", unlockAudio);
@@ -135,17 +149,28 @@ export default function OrderForm() {
 
         const querySnapshot = await getDocs(q);
 
+        // ⭐ DEBUG LOG: shu stol uchun eski (yopilmagan) buyurtma bor-yo'qligini ko'rsatadi
+        console.log(
+          `🔍 Stol ${tableNumber} uchun mavjud 'unpaid' buyurtmalar soni:`,
+          querySnapshot.size
+        );
+
         if (!querySnapshot.empty) {
           const activeOrderDoc = querySnapshot.docs[0];
           setExistingOrderId(activeOrderDoc.id);
+          console.log("➡️ Mavjud buyurtma topildi, ID:", activeOrderDoc.id, "— yangi taomlar shu buyurtmaga QO'SHILADI (addDoc emas, updateDoc ishlaydi)");
 
           const orderData = activeOrderDoc.data();
           if (orderData.items && Array.isArray(orderData.items)) {
             setExistingOrderItems(orderData.items);
           }
+        } else {
+          setExistingOrderId(null);
+          setExistingOrderItems([]);
+          console.log("➡️ Mavjud buyurtma yo'q — yangi buyurtma (addDoc) yaratiladi");
         }
       } catch (error) {
-        console.error("Stol buyurtmasini yuklashda xatolik:", error);
+        console.error("❌ Stol buyurtmasini yuklashda xatolik:", error);
       }
     };
 
@@ -259,6 +284,8 @@ export default function OrderForm() {
   // 4. BUYURTMANI SAQLASH / YANGILASH
   // =========================================================
   const handleSubmitOrder = async () => {
+    console.log("🚀 SUBMIT bosildi:", { tableNumber, cartCount: cart.length, existingOrderId });
+
     if (!tableNumber) {
       toast.error("Iltimos, stol raqamini kiriting!");
       return;
@@ -266,6 +293,10 @@ export default function OrderForm() {
     if (cart.length === 0) {
       toast.error("Savat bo'sh! Taom tanlang.");
       return;
+    }
+    // ⭐ FIX: cafeId bo'sh bo'lsa ogohlantirish (menyuda va Kitchen'da filtrlashga ta'sir qilishi mumkin)
+    if (!cafeId) {
+      console.warn("⚠️ DIQQAT: cafeId aniqlanmagan (bo'sh)! AuthContext'ni tekshiring.");
     }
 
     setSubmitting(true);
@@ -312,6 +343,7 @@ export default function OrderForm() {
       );
 
       if (existingOrderId) {
+        console.log("✏️ Mavjud buyurtma YANGILANMOQDA, ID:", existingOrderId);
         const orderRef = doc(db, "orders", existingOrderId);
         await updateDoc(orderRef, {
           items: finalAllItems,
@@ -322,6 +354,7 @@ export default function OrderForm() {
           updatedAt: serverTimestamp(),
         });
 
+        console.log("✅ UPDATE muvaffaqiyatli, ID:", existingOrderId);
         toast.success("🍲 Buyurtmaga yangi taomlar qo'shildi!", { autoClose: 2000 });
       } else {
         const formattedCartItems = cart.map((item) => ({
@@ -357,7 +390,11 @@ export default function OrderForm() {
           orderSource: "waiter",
         };
 
-        await addDoc(collection(db, "orders"), orderData);
+        console.log("📝 YANGI order yaratilmoqda:", orderData);
+
+        const docRef = await addDoc(collection(db, "orders"), orderData);
+
+        console.log("✅ YANGI ORDER MUVAFFAQIYATLI YARATILDI! Firestore ID:", docRef.id);
 
         toast.success(
           newKitchenItems.length > 0
@@ -371,7 +408,10 @@ export default function OrderForm() {
       setIsCartModalOpen(false);
       navigate("/waiter/tables");
     } catch (error) {
-      console.error("❌ Xatolik:", error);
+      // ⭐ FIX: to'liq xatolikni konsolga chiqarish (kodini ham)
+      console.error("❌ BUYURTMA YUBORISHDA XATOLIK:", error);
+      console.error("Xato kodi:", error.code);
+      console.error("Xato matni:", error.message);
       toast.error("Buyurtma yuborilmadi: " + error.message);
     } finally {
       setSubmitting(false);
