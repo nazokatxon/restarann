@@ -318,10 +318,10 @@ export default function Billing() {
 
   const getOrderNumber = (order) => {
     return (
-      order.orderNumber ||
-      order.orderNo ||
-      order.number ||
-      `#${String(order.id).slice(0, 8)}`
+      order?.orderNumber ||
+      order?.orderNo ||
+      order?.number ||
+      `#${String(order?.id || "").slice(0, 8)}`
     );
   };
 
@@ -417,15 +417,16 @@ export default function Billing() {
   };
 
   // =====================================================
-  // PAYMENT
+  // PAYMENT MODAL
   // =====================================================
 
   const openPayment = (order) => {
     setOpenMenuId(null);
+
     setSelectedOrder(order);
 
     setPaymentMethod(
-      order.paymentMethod || "cash"
+      order?.paymentMethod || "cash"
     );
 
     setPaymentModal(true);
@@ -440,6 +441,429 @@ export default function Billing() {
     setError("");
   };
 
+  // =====================================================
+  // PRINT RECEIPT
+  // =====================================================
+
+  const printReceipt = (order) => {
+    const items = Array.isArray(order?.items)
+      ? order.items
+      : [];
+
+    const total = getTotal(order);
+
+    const orderNumber =
+      getOrderNumber(order);
+
+    const orderDate =
+      getDateObject(order?.createdAt);
+
+    const dateText = orderDate
+      ? orderDate.toLocaleString("uz-UZ", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : new Date().toLocaleString("uz-UZ");
+
+    const paymentText =
+      order?.paymentMethod === "card"
+        ? "Plastik karta"
+        : "Naqd pul";
+
+    const formatter =
+      new Intl.NumberFormat("uz-UZ");
+
+    const escapeHtml = (value) => {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    };
+
+    const itemsHtml = items
+      .map((item) => {
+        const quantity =
+          Number(item?.quantity) || 1;
+
+        const price =
+          Number(item?.price) || 0;
+
+        const itemTotal =
+          quantity * price;
+
+        const name =
+          item?.name ||
+          item?.title ||
+          "Noma'lum mahsulot";
+
+        return `
+          <div class="item">
+
+            <div class="item-name">
+              ${escapeHtml(name)}
+            </div>
+
+            <div class="item-row">
+
+              <span>
+                ${quantity} x
+                ${formatter.format(price)}
+              </span>
+
+              <strong>
+                ${formatter.format(itemTotal)}
+              </strong>
+
+            </div>
+
+          </div>
+        `;
+      })
+      .join("");
+
+    const receiptWindow =
+      window.open(
+        "",
+        "_blank",
+        "width=420,height=750"
+      );
+
+    if (!receiptWindow) {
+      alert(
+        "Chek oynasini ochib bo'lmadi. Brauzer popup oynasiga ruxsat bering."
+      );
+
+      return;
+    }
+
+    receiptWindow.document.write(`
+      <!DOCTYPE html>
+
+      <html lang="uz">
+
+      <head>
+
+        <meta charset="UTF-8" />
+
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0"
+        />
+
+        <title>
+          Chek ${escapeHtml(orderNumber)}
+        </title>
+
+        <style>
+
+          * {
+            box-sizing: border-box;
+          }
+
+          html,
+          body {
+            margin: 0;
+            padding: 0;
+            background: white;
+          }
+
+          body {
+            color: #111;
+            font-family:
+              Arial,
+              Helvetica,
+              sans-serif;
+          }
+
+          .receipt {
+            width: 80mm;
+            margin: 0 auto;
+            padding: 12px 8px 18px;
+          }
+
+          .center {
+            text-align: center;
+          }
+
+          .cafe-name {
+            font-size: 24px;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+          }
+
+          .subtitle {
+            margin-top: 4px;
+            font-size: 11px;
+            color: #555;
+          }
+
+          .line {
+            border-top: 1px dashed #111;
+            margin: 10px 0;
+          }
+
+          .info {
+            font-size: 12px;
+            line-height: 1.7;
+          }
+
+          .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+          }
+
+          .info-row span:first-child {
+            color: #555;
+          }
+
+          .info-row span:last-child,
+          .info-row strong {
+            text-align: right;
+          }
+
+          .items {
+            margin-top: 5px;
+          }
+
+          .item {
+            margin-bottom: 10px;
+            font-size: 12px;
+          }
+
+          .item-name {
+            font-weight: 700;
+            margin-bottom: 3px;
+            word-break: break-word;
+          }
+
+          .item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+          }
+
+          .item-row span {
+            color: #444;
+          }
+
+          .total {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            font-size: 17px;
+            font-weight: 900;
+          }
+
+          .payment {
+            margin-top: 10px;
+            font-size: 12px;
+          }
+
+          .thanks {
+            text-align: center;
+            font-size: 13px;
+            font-weight: 700;
+            margin-top: 18px;
+          }
+
+          .footer {
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+            margin-top: 6px;
+          }
+
+          @media print {
+
+            html,
+            body {
+              width: 80mm;
+            }
+
+            .receipt {
+              width: 80mm;
+              margin: 0;
+              padding: 8px 6px 12px;
+            }
+
+            @page {
+              size: 80mm auto;
+              margin: 0;
+            }
+
+          }
+
+        </style>
+
+      </head>
+
+      <body>
+
+        <div class="receipt">
+
+          <div class="center">
+
+            <div class="cafe-name">
+              𝒜ℐ 𝒞𝒶𝒻ℯ
+            </div>
+
+            <div class="subtitle">
+              KASSA CHEKI
+            </div>
+
+          </div>
+
+          <div class="line"></div>
+
+          <div class="info">
+
+            <div class="info-row">
+
+              <span>
+                Buyurtma:
+              </span>
+
+              <strong>
+                ${escapeHtml(orderNumber)}
+              </strong>
+
+            </div>
+
+            <div class="info-row">
+
+              <span>
+                Sana:
+              </span>
+
+              <span>
+                ${escapeHtml(dateText)}
+              </span>
+
+            </div>
+
+            ${
+              order?.tableNumber
+                ? `
+                  <div class="info-row">
+
+                    <span>
+                      Stol:
+                    </span>
+
+                    <strong>
+                      ${escapeHtml(
+                        order.tableNumber
+                      )}
+                    </strong>
+
+                  </div>
+                `
+                : ""
+            }
+
+          </div>
+
+          <div class="line"></div>
+
+          <div class="items">
+
+            ${
+              itemsHtml ||
+              `
+                <div
+                  style="
+                    text-align:center;
+                    font-size:12px;
+                  "
+                >
+                  Mahsulotlar mavjud emas
+                </div>
+              `
+            }
+
+          </div>
+
+          <div class="line"></div>
+
+          <div class="total">
+
+            <span>
+              JAMI:
+            </span>
+
+            <span>
+              ${formatter.format(total)}
+              so'm
+            </span>
+
+          </div>
+
+          <div class="payment">
+
+            To'lov turi:
+            <strong>
+              ${escapeHtml(paymentText)}
+            </strong>
+
+          </div>
+
+          <div class="line"></div>
+
+          <div class="thanks">
+            Xaridingiz uchun rahmat!
+          </div>
+
+          <div class="footer">
+            𝒜ℐ 𝒞𝒶𝒻ℯ
+          </div>
+
+        </div>
+
+        <script>
+
+          window.onload = function () {
+
+            setTimeout(function () {
+
+              window.print();
+
+            }, 400);
+
+          };
+
+          window.onafterprint = function () {
+
+            setTimeout(function () {
+
+              window.close();
+
+            }, 300);
+
+          };
+
+        </script>
+
+      </body>
+
+      </html>
+    `);
+
+    receiptWindow.document.close();
+  };
+
+  // =====================================================
+  // PAYMENT
+  // =====================================================
+
   const handlePayment = async () => {
     if (!selectedOrder) return;
 
@@ -447,6 +871,11 @@ export default function Billing() {
     setError("");
 
     try {
+      const paidOrder = {
+        ...selectedOrder,
+        paymentMethod,
+      };
+
       await updateDoc(
         doc(
           db,
@@ -455,27 +884,44 @@ export default function Billing() {
         ),
         {
           paymentStatus: "paid",
+
           paymentMethod,
+
           isPaid: true,
 
-          paidAt: serverTimestamp(),
+          paidAt:
+            serverTimestamp(),
 
-          paidBy: user?.uid || null,
+          paidBy:
+            user?.uid || null,
+
           paidByUsername:
             user?.username || null,
 
-          cashierId: user?.uid || null,
+          cashierId:
+            user?.uid || null,
+
           cashierUsername:
             user?.username || null,
 
           status: "paid",
-          updatedAt: serverTimestamp(),
+
+          updatedAt:
+            serverTimestamp(),
         }
       );
 
       setPaymentModal(false);
+
       setSelectedOrder(null);
+
       setOpenMenuId(null);
+
+      // ==============================================
+      // TO'LOVDAN KEYIN CHEK
+      // ==============================================
+
+      printReceipt(paidOrder);
     } catch (err) {
       console.error(
         "To'lovda xato:",
@@ -518,6 +964,7 @@ export default function Billing() {
         ),
         {
           paymentStatus: "cancelled",
+
           status: "cancelled",
 
           cancelledAt:
@@ -548,6 +995,10 @@ export default function Billing() {
     }
   };
 
+  // =====================================================
+  // RESET FILTERS
+  // =====================================================
+
   const resetFilters = () => {
     setSearch("");
     setDateFilter("");
@@ -560,8 +1011,11 @@ export default function Billing() {
 
   return (
     <div className="w-full min-h-screen bg-slate-50">
+
       {/* HEADER */}
+
       <div className="bg-white border-b border-slate-200">
+
         <div
           className="
             px-5
@@ -576,7 +1030,9 @@ export default function Billing() {
             gap-6
           "
         >
+
           <div className="flex items-start gap-5">
+
             <div
               className="
                 w-12
@@ -594,6 +1050,7 @@ export default function Billing() {
             </div>
 
             <div>
+
               <h1
                 className="
                   text-3xl
@@ -617,7 +1074,9 @@ export default function Billing() {
                 Buyurtmalarni qabul qilish va
                 to'lovlarni boshqarish
               </p>
+
             </div>
+
           </div>
 
           <button
@@ -644,12 +1103,16 @@ export default function Billing() {
             "
           >
             <RefreshCw size={18} />
+
             Yangilash
           </button>
+
         </div>
+
       </div>
 
       {/* CONTENT */}
+
       <div
         className="
           bg-white
@@ -661,7 +1124,9 @@ export default function Billing() {
           py-8
         "
       >
+
         {/* ERROR */}
+
         {error && (
           <div
             className="
@@ -682,6 +1147,7 @@ export default function Billing() {
         )}
 
         {/* FILTERS */}
+
         <div
           className="
             grid
@@ -691,8 +1157,11 @@ export default function Billing() {
             mb-8
           "
         >
+
           {/* SEARCH */}
+
           <div className="relative">
+
             <Search
               size={21}
               className="
@@ -730,10 +1199,13 @@ export default function Billing() {
                 focus:border-blue-400
               "
             />
+
           </div>
 
           {/* DATE */}
+
           <div className="relative">
+
             <CalendarDays
               size={21}
               className="
@@ -771,10 +1243,13 @@ export default function Billing() {
                 focus:border-blue-400
               "
             />
+
           </div>
 
           {/* STATUS */}
+
           <div className="relative">
+
             <select
               value={statusFilter}
               onChange={(e) =>
@@ -801,6 +1276,7 @@ export default function Billing() {
                 focus:border-blue-400
               "
             >
+
               <option value="all">
                 Holat: Barchasi
               </option>
@@ -820,6 +1296,15 @@ export default function Billing() {
               <option value="completed">
                 Tugallangan
               </option>
+
+              <option value="preparing">
+                Tayyorlanmoqda
+              </option>
+
+              <option value="ready">
+                Tayyor
+              </option>
+
             </select>
 
             <ChevronDown
@@ -833,10 +1318,13 @@ export default function Billing() {
                 pointer-events-none
               "
             />
+
           </div>
+
         </div>
 
         {/* TABLE */}
+
         <div
           className="
             border
@@ -845,7 +1333,9 @@ export default function Billing() {
             overflow-hidden
           "
         >
+
           {loading ? (
+
             <div
               className="
                 py-28
@@ -853,6 +1343,7 @@ export default function Billing() {
                 text-slate-400
               "
             >
+
               <RefreshCw
                 size={32}
                 className="
@@ -863,8 +1354,11 @@ export default function Billing() {
               />
 
               Buyurtmalar yuklanmoqda...
+
             </div>
+
           ) : filteredOrders.length === 0 ? (
+
             <div
               className="
                 py-28
@@ -872,6 +1366,7 @@ export default function Billing() {
                 bg-white
               "
             >
+
               <Receipt
                 size={55}
                 className="
@@ -920,10 +1415,15 @@ export default function Billing() {
               >
                 Filtrlarni tozalash
               </button>
+
             </div>
+
           ) : (
+
             <>
+
               {/* DESKTOP */}
+
               <div
                 className="
                   hidden
@@ -931,8 +1431,11 @@ export default function Billing() {
                   overflow-x-auto
                 "
               >
+
                 <table className="w-full text-sm">
+
                   <thead>
+
                     <tr
                       className="
                         bg-slate-50/70
@@ -941,6 +1444,7 @@ export default function Billing() {
                         text-left
                       "
                     >
+
                       <th className="px-5 py-5 font-bold text-slate-500">
                         №
                       </th>
@@ -964,12 +1468,16 @@ export default function Billing() {
                       <th className="px-5 py-5 font-bold text-slate-500">
                         Amallar
                       </th>
+
                     </tr>
+
                   </thead>
 
                   <tbody>
+
                     {paginatedOrders.map(
                       (order, index) => {
+
                         const rowNumber =
                           (currentPage - 1) *
                             pageSize +
@@ -977,6 +1485,7 @@ export default function Billing() {
                           1;
 
                         return (
+
                           <tr
                             key={order.id}
                             className="
@@ -987,11 +1496,13 @@ export default function Billing() {
                               transition
                             "
                           >
+
                             <td className="px-5 py-5 text-slate-600">
                               {rowNumber}
                             </td>
 
                             <td className="px-5 py-5">
+
                               <button
                                 type="button"
                                 onClick={() =>
@@ -1009,6 +1520,7 @@ export default function Billing() {
                                   order
                                 )}
                               </button>
+
                             </td>
 
                             <td
@@ -1025,6 +1537,7 @@ export default function Billing() {
                             </td>
 
                             <td className="px-5 py-5">
+
                               <span
                                 className={`
                                   inline-flex
@@ -1042,6 +1555,7 @@ export default function Billing() {
                                   order.status
                                 )}
                               </span>
+
                             </td>
 
                             <td
@@ -1059,6 +1573,7 @@ export default function Billing() {
                             </td>
 
                             <td className="px-5 py-5">
+
                               <div
                                 className="
                                   flex
@@ -1066,6 +1581,7 @@ export default function Billing() {
                                   gap-2
                                 "
                               >
+
                                 <button
                                   type="button"
                                   disabled={
@@ -1095,11 +1611,13 @@ export default function Billing() {
                                     disabled:opacity-50
                                   "
                                 >
+
                                   <CreditCard
                                     size={16}
                                   />
 
                                   To'lov qilish
+
                                 </button>
 
                                 <button
@@ -1126,11 +1644,15 @@ export default function Billing() {
                                     hover:bg-slate-50
                                   "
                                 >
+
                                   <Eye size={16} />
+
                                   Ko'rish
+
                                 </button>
 
                                 <div className="relative">
+
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -1162,6 +1684,7 @@ export default function Billing() {
 
                                   {openMenuId ===
                                     order.id && (
+
                                     <div
                                       className="
                                         absolute
@@ -1177,6 +1700,7 @@ export default function Billing() {
                                         z-30
                                       "
                                     >
+
                                       <button
                                         type="button"
                                         disabled={
@@ -1202,26 +1726,39 @@ export default function Billing() {
                                           gap-2
                                         "
                                       >
+
                                         <XCircle
                                           size={16}
                                         />
 
                                         Bekor qilish
+
                                       </button>
+
                                     </div>
+
                                   )}
+
                                 </div>
+
                               </div>
+
                             </td>
+
                           </tr>
+
                         );
                       }
                     )}
+
                   </tbody>
+
                 </table>
+
               </div>
 
               {/* MOBILE */}
+
               <div
                 className="
                   block
@@ -1230,8 +1767,10 @@ export default function Billing() {
                   divide-slate-100
                 "
               >
+
                 {paginatedOrders.map(
                   (order, index) => {
+
                     const rowNumber =
                       (currentPage - 1) *
                         pageSize +
@@ -1239,13 +1778,38 @@ export default function Billing() {
                       1;
 
                     return (
+
                       <div
                         key={order.id}
-                        className="p-5 space-y-4"
+                        className="
+                          p-5
+                          space-y-4
+                        "
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-bold text-slate-400">
+
+                        <div
+                          className="
+                            flex
+                            items-center
+                            justify-between
+                          "
+                        >
+
+                          <div
+                            className="
+                              flex
+                              items-center
+                              gap-3
+                            "
+                          >
+
+                            <span
+                              className="
+                                text-sm
+                                font-bold
+                                text-slate-400
+                              "
+                            >
                               #{rowNumber}
                             </span>
 
@@ -1267,6 +1831,7 @@ export default function Billing() {
                                 order
                               )}
                             </button>
+
                           </div>
 
                           <span
@@ -1286,6 +1851,7 @@ export default function Billing() {
                               order.status
                             )}
                           </span>
+
                         </div>
 
                         <div
@@ -1297,27 +1863,50 @@ export default function Billing() {
                             text-slate-600
                           "
                         >
+
                           <div>
-                            <span className="text-slate-400 block text-xs">
+
+                            <span
+                              className="
+                                text-slate-400
+                                block
+                                text-xs
+                              "
+                            >
                               Sana
                             </span>
 
                             {formatDate(
                               order.createdAt
                             )}
+
                           </div>
 
                           <div>
-                            <span className="text-slate-400 block text-xs">
+
+                            <span
+                              className="
+                                text-slate-400
+                                block
+                                text-xs
+                              "
+                            >
                               Summa
                             </span>
 
-                            <span className="font-bold text-slate-800">
+                            <span
+                              className="
+                                font-bold
+                                text-slate-800
+                              "
+                            >
                               {formatMoney(
                                 getTotal(order)
                               )}
                             </span>
+
                           </div>
+
                         </div>
 
                         <div
@@ -1328,6 +1917,7 @@ export default function Billing() {
                             pt-2
                           "
                         >
+
                           <button
                             type="button"
                             disabled={
@@ -1354,8 +1944,11 @@ export default function Billing() {
                               disabled:opacity-50
                             "
                           >
+
                             <CreditCard size={16} />
+
                             To'lov qilish
+
                           </button>
 
                           <button
@@ -1382,8 +1975,11 @@ export default function Billing() {
                               hover:bg-slate-50
                             "
                           >
+
                             <Eye size={16} />
+
                             Ko'rish
+
                           </button>
 
                           <button
@@ -1410,16 +2006,23 @@ export default function Billing() {
                               disabled:opacity-50
                             "
                           >
+
                             <XCircle size={18} />
+
                           </button>
+
                         </div>
+
                       </div>
+
                     );
                   }
                 )}
+
               </div>
 
               {/* PAGINATION */}
+
               <div
                 className="
                   flex
@@ -1434,19 +2037,53 @@ export default function Billing() {
                   bg-slate-50/50
                 "
               >
-                <div className="text-sm text-slate-500 font-medium">
+
+                <div
+                  className="
+                    text-sm
+                    text-slate-500
+                    font-medium
+                  "
+                >
                   Jami:
-                  <span className="font-bold text-slate-700 ml-1">
+
+                  <span
+                    className="
+                      font-bold
+                      text-slate-700
+                      ml-1
+                    "
+                  >
                     {filteredOrders.length}
                   </span>
+
                   <span className="ml-1">
                     ta buyurtma
                   </span>
+
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <span>Sahifada:</span>
+                <div
+                  className="
+                    flex
+                    items-center
+                    gap-3
+                  "
+                >
+
+                  <div
+                    className="
+                      flex
+                      items-center
+                      gap-2
+                      text-sm
+                      text-slate-600
+                    "
+                  >
+
+                    <span>
+                      Sahifada:
+                    </span>
 
                     <select
                       value={pageSize}
@@ -1468,6 +2105,7 @@ export default function Billing() {
                         font-bold
                       "
                     >
+
                       <option value={10}>
                         10
                       </option>
@@ -1479,10 +2117,19 @@ export default function Billing() {
                       <option value={50}>
                         50
                       </option>
+
                     </select>
+
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div
+                    className="
+                      flex
+                      items-center
+                      gap-1
+                    "
+                  >
+
                     <button
                       type="button"
                       disabled={
@@ -1490,7 +2137,10 @@ export default function Billing() {
                       }
                       onClick={() =>
                         setPage((p) =>
-                          Math.max(1, p - 1)
+                          Math.max(
+                            1,
+                            p - 1
+                          )
                         )
                       }
                       className="
@@ -1508,7 +2158,9 @@ export default function Billing() {
                         disabled:opacity-40
                       "
                     >
-                      <ChevronLeft size={18} />
+                      <ChevronLeft
+                        size={18}
+                      />
                     </button>
 
                     <span
@@ -1519,7 +2171,8 @@ export default function Billing() {
                         text-slate-700
                       "
                     >
-                      {currentPage} / {totalPages}
+                      {currentPage} /{" "}
+                      {totalPages}
                     </span>
 
                     <button
@@ -1551,565 +2204,822 @@ export default function Billing() {
                         disabled:opacity-40
                       "
                     >
-                      <ChevronRight size={18} />
+                      <ChevronRight
+                        size={18}
+                      />
                     </button>
+
                   </div>
+
                 </div>
+
               </div>
+
             </>
+
           )}
+
         </div>
+
       </div>
 
-      {/* PAYMENT MODAL */}
-      {paymentModal && selectedOrder && (
-        <div
-          className="
-            fixed
-            inset-0
-            z-50
-            flex
-            items-center
-            justify-center
-            bg-slate-900/40
-            backdrop-blur-sm
-            p-4
-          "
-        >
+      {/* =================================================
+          PAYMENT MODAL
+      ================================================= */}
+
+      {paymentModal &&
+        selectedOrder && (
+
           <div
             className="
-              bg-white
-              w-full
-              max-w-md
-              rounded-2xl
-              border
-              border-slate-200
-              shadow-2xl
-              overflow-hidden
+              fixed
+              inset-0
+              z-50
+              flex
+              items-center
+              justify-center
+              bg-slate-900/40
+              backdrop-blur-sm
+              p-4
             "
           >
+
             <div
               className="
-                px-6
-                py-5
-                border-b
-                border-slate-100
-                flex
-                items-center
-                justify-between
+                bg-white
+                w-full
+                max-w-md
+                rounded-2xl
+                border
+                border-slate-200
+                shadow-2xl
+                overflow-hidden
               "
             >
-              <h3 className="text-xl font-black text-slate-900">
-                To'lovni qabul qilish
-              </h3>
 
-              <button
-                type="button"
-                onClick={closePayment}
-                disabled={!!processingId}
-                className="
-                  w-9
-                  h-9
-                  rounded-xl
-                  border
-                  border-slate-200
-                  bg-white
-                  text-slate-500
-                  flex
-                  items-center
-                  justify-center
-                  hover:bg-slate-50
-                  disabled:opacity-50
-                "
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
               <div
                 className="
-                  bg-slate-50
-                  rounded-xl
-                  p-4
-                  border
+                  px-6
+                  py-5
+                  border-b
                   border-slate-100
-                  space-y-2
+                  flex
+                  items-center
+                  justify-between
                 "
               >
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">
-                    Buyurtma:
-                  </span>
 
-                  <span className="font-bold text-slate-800">
-                    {getOrderNumber(
-                      selectedOrder
-                    )}
-                  </span>
+                <h3
+                  className="
+                    text-xl
+                    font-black
+                    text-slate-900
+                  "
+                >
+                  To'lovni qabul qilish
+                </h3>
+
+                <button
+                  type="button"
+                  onClick={closePayment}
+                  disabled={!!processingId}
+                  className="
+                    w-9
+                    h-9
+                    rounded-xl
+                    border
+                    border-slate-200
+                    bg-white
+                    text-slate-500
+                    flex
+                    items-center
+                    justify-center
+                    hover:bg-slate-50
+                    disabled:opacity-50
+                  "
+                >
+                  <X size={18} />
+                </button>
+
+              </div>
+
+              <div className="p-6 space-y-5">
+
+                <div
+                  className="
+                    bg-slate-50
+                    rounded-xl
+                    p-4
+                    border
+                    border-slate-100
+                    space-y-2
+                  "
+                >
+
+                  <div
+                    className="
+                      flex
+                      justify-between
+                      text-sm
+                    "
+                  >
+
+                    <span className="text-slate-500">
+                      Buyurtma:
+                    </span>
+
+                    <span
+                      className="
+                        font-bold
+                        text-slate-800
+                      "
+                    >
+                      {getOrderNumber(
+                        selectedOrder
+                      )}
+                    </span>
+
+                  </div>
+
+                  <div
+                    className="
+                      flex
+                      justify-between
+                      text-sm
+                    "
+                  >
+
+                    <span className="text-slate-500">
+                      Jami summa:
+                    </span>
+
+                    <span
+                      className="
+                        font-black
+                        text-blue-600
+                        text-base
+                      "
+                    >
+                      {formatMoney(
+                        getTotal(
+                          selectedOrder
+                        )
+                      )}
+                    </span>
+
+                  </div>
+
                 </div>
 
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">
+                <div className="space-y-2">
+
+                  <label
+                    className="
+                      text-sm
+                      font-bold
+                      text-slate-700
+                      block
+                    "
+                  >
+                    To'lov turi
+                  </label>
+
+                  <div
+                    className="
+                      grid
+                      grid-cols-2
+                      gap-3
+                    "
+                  >
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPaymentMethod(
+                          "cash"
+                        )
+                      }
+                      className={`
+                        py-3
+                        px-4
+                        rounded-xl
+                        border
+                        font-bold
+                        text-sm
+                        flex
+                        items-center
+                        justify-center
+                        gap-2
+                        transition
+                        ${
+                          paymentMethod ===
+                          "cash"
+                            ? "border-blue-600 bg-blue-50 text-blue-600"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }
+                      `}
+                    >
+
+                      <Banknote size={18} />
+
+                      Naqd pul
+
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPaymentMethod(
+                          "card"
+                        )
+                      }
+                      className={`
+                        py-3
+                        px-4
+                        rounded-xl
+                        border
+                        font-bold
+                        text-sm
+                        flex
+                        items-center
+                        justify-center
+                        gap-2
+                        transition
+                        ${
+                          paymentMethod ===
+                          "card"
+                            ? "border-blue-600 bg-blue-50 text-blue-600"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }
+                      `}
+                    >
+
+                      <CreditCard
+                        size={18}
+                      />
+
+                      Plastik karta
+
+                    </button>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              <div
+                className="
+                  px-6
+                  py-4
+                  border-t
+                  border-slate-100
+                  bg-slate-50
+                  flex
+                  items-center
+                  justify-end
+                  gap-3
+                "
+              >
+
+                <button
+                  type="button"
+                  onClick={closePayment}
+                  disabled={!!processingId}
+                  className="
+                    px-5
+                    py-2.5
+                    rounded-xl
+                    border
+                    border-slate-200
+                    bg-white
+                    text-slate-700
+                    font-bold
+                    text-sm
+                    hover:bg-slate-50
+                    disabled:opacity-50
+                  "
+                >
+                  Bekor qilish
+                </button>
+
+                <button
+                  type="button"
+                  disabled={
+                    processingId ===
+                    selectedOrder.id
+                  }
+                  onClick={handlePayment}
+                  className="
+                    px-5
+                    py-2.5
+                    rounded-xl
+                    bg-blue-600
+                    text-white
+                    font-bold
+                    text-sm
+                    hover:bg-blue-700
+                    flex
+                    items-center
+                    gap-2
+                    disabled:opacity-50
+                  "
+                >
+
+                  {processingId ===
+                  selectedOrder.id ? (
+
+                    <>
+
+                      <RefreshCw
+                        size={16}
+                        className="animate-spin"
+                      />
+
+                      Saqlanmoqda...
+
+                    </>
+
+                  ) : (
+
+                    <>
+
+                      <CheckCircle
+                        size={16}
+                      />
+
+                      To'landi deb belgilash
+
+                    </>
+
+                  )}
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        )}
+
+      {/* =================================================
+          ORDER DETAILS MODAL
+      ================================================= */}
+
+      {selectedOrder &&
+        !paymentModal && (
+
+          <div
+            className="
+              fixed
+              inset-0
+              z-50
+              flex
+              items-center
+              justify-center
+              bg-slate-900/40
+              backdrop-blur-sm
+              p-4
+            "
+          >
+
+            <div
+              className="
+                bg-white
+                w-full
+                max-w-lg
+                rounded-2xl
+                border
+                border-slate-200
+                shadow-2xl
+                overflow-hidden
+                max-h-[90vh]
+                flex
+                flex-col
+              "
+            >
+
+              <div
+                className="
+                  px-6
+                  py-5
+                  border-b
+                  border-slate-100
+                  flex
+                  items-center
+                  justify-between
+                  shrink-0
+                "
+              >
+
+                <h3
+                  className="
+                    text-xl
+                    font-black
+                    text-slate-900
+                  "
+                >
+                  Buyurtma tafsilotlari
+                </h3>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedOrder(null)
+                  }
+                  className="
+                    w-9
+                    h-9
+                    rounded-xl
+                    border
+                    border-slate-200
+                    bg-white
+                    text-slate-500
+                    flex
+                    items-center
+                    justify-center
+                    hover:bg-slate-50
+                  "
+                >
+                  <X size={18} />
+                </button>
+
+              </div>
+
+              <div
+                className="
+                  p-6
+                  overflow-y-auto
+                  space-y-6
+                  flex-1
+                "
+              >
+
+                <div
+                  className="
+                    grid
+                    grid-cols-2
+                    gap-4
+                    text-sm
+                    bg-slate-50
+                    p-4
+                    rounded-xl
+                    border
+                    border-slate-100
+                  "
+                >
+
+                  <div>
+
+                    <span
+                      className="
+                        text-slate-400
+                        block
+                        text-xs
+                      "
+                    >
+                      Buyurtma
+                    </span>
+
+                    <span
+                      className="
+                        font-bold
+                        text-slate-700
+                      "
+                    >
+                      {getOrderNumber(
+                        selectedOrder
+                      )}
+                    </span>
+
+                  </div>
+
+                  <div>
+
+                    <span
+                      className="
+                        text-slate-400
+                        block
+                        text-xs
+                      "
+                    >
+                      Sana
+                    </span>
+
+                    <span
+                      className="
+                        font-bold
+                        text-slate-700
+                      "
+                    >
+                      {formatDate(
+                        selectedOrder.createdAt
+                      )}
+                    </span>
+
+                  </div>
+
+                  <div>
+
+                    <span
+                      className="
+                        text-slate-400
+                        block
+                        text-xs
+                      "
+                    >
+                      Holat
+                    </span>
+
+                    <span
+                      className={`
+                        inline-block
+                        mt-1
+                        px-2.5
+                        py-0.5
+                        rounded-md
+                        text-xs
+                        font-bold
+                        ${getStatusClass(
+                          selectedOrder.status
+                        )}
+                      `}
+                    >
+                      {getStatusLabel(
+                        selectedOrder.status
+                      )}
+                    </span>
+
+                  </div>
+
+                  {selectedOrder.tableNumber && (
+
+                    <div>
+
+                      <span
+                        className="
+                          text-slate-400
+                          block
+                          text-xs
+                        "
+                      >
+                        Stol raqami
+                      </span>
+
+                      <span
+                        className="
+                          font-bold
+                          text-slate-700
+                        "
+                      >
+                        {selectedOrder.tableNumber}
+                      </span>
+
+                    </div>
+
+                  )}
+
+                </div>
+
+                <div className="space-y-3">
+
+                  <h4
+                    className="
+                      font-extrabold
+                      text-slate-800
+                      text-sm
+                    "
+                  >
+                    Buyurtma tarkibi
+                  </h4>
+
+                  <div
+                    className="
+                      border
+                      border-slate-200
+                      rounded-xl
+                      overflow-hidden
+                      divide-y
+                      divide-slate-100
+                    "
+                  >
+
+                    {getItems(
+                      selectedOrder
+                    ).length === 0 ? (
+
+                      <div
+                        className="
+                          p-4
+                          text-center
+                          text-slate-400
+                          text-sm
+                        "
+                      >
+                        Mahsulotlar mavjud emas
+                      </div>
+
+                    ) : (
+
+                      getItems(
+                        selectedOrder
+                      ).map(
+                        (item, idx) => {
+
+                          const quantity =
+                            Number(
+                              item?.quantity
+                            ) || 1;
+
+                          const price =
+                            Number(
+                              item?.price
+                            ) || 0;
+
+                          return (
+
+                            <div
+                              key={idx}
+                              className="
+                                p-3.5
+                                flex
+                                items-center
+                                justify-between
+                                text-sm
+                              "
+                            >
+
+                              <div>
+
+                                <div
+                                  className="
+                                    font-bold
+                                    text-slate-800
+                                  "
+                                >
+                                  {item?.name ||
+                                    item?.title ||
+                                    "Noma'lum mahsulot"}
+                                </div>
+
+                                <div
+                                  className="
+                                    text-xs
+                                    text-slate-400
+                                  "
+                                >
+                                  {quantity} x{" "}
+                                  {formatMoney(
+                                    price
+                                  )}
+                                </div>
+
+                              </div>
+
+                              <div
+                                className="
+                                  font-bold
+                                  text-slate-700
+                                "
+                              >
+                                {formatMoney(
+                                  quantity *
+                                    price
+                                )}
+                              </div>
+
+                            </div>
+
+                          );
+                        }
+                      )
+
+                    )}
+
+                  </div>
+
+                </div>
+
+                <div
+                  className="
+                    border-t
+                    border-slate-100
+                    pt-4
+                    flex
+                    items-center
+                    justify-between
+                    text-base
+                  "
+                >
+
+                  <span
+                    className="
+                      font-bold
+                      text-slate-500
+                    "
+                  >
                     Jami summa:
                   </span>
 
-                  <span className="font-black text-blue-600 text-base">
+                  <span
+                    className="
+                      font-black
+                      text-blue-600
+                      text-xl
+                    "
+                  >
                     {formatMoney(
                       getTotal(
                         selectedOrder
                       )
                     )}
                   </span>
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 block">
-                  To'lov turi
-                </label>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPaymentMethod("cash")
-                    }
-                    className={`
-                      py-3
-                      px-4
-                      rounded-xl
-                      border
-                      font-bold
-                      text-sm
-                      flex
-                      items-center
-                      justify-center
-                      gap-2
-                      transition
-                      ${
-                        paymentMethod === "cash"
-                          ? "border-blue-600 bg-blue-50 text-blue-600"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                      }
-                    `}
-                  >
-                    <Banknote size={18} />
-                    Naqd pul
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPaymentMethod("card")
-                    }
-                    className={`
-                      py-3
-                      px-4
-                      rounded-xl
-                      border
-                      font-bold
-                      text-sm
-                      flex
-                      items-center
-                      justify-center
-                      gap-2
-                      transition
-                      ${
-                        paymentMethod === "card"
-                          ? "border-blue-600 bg-blue-50 text-blue-600"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                      }
-                    `}
-                  >
-                    <CreditCard size={18} />
-                    Plastik karta
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div
-              className="
-                px-6
-                py-4
-                border-t
-                border-slate-100
-                bg-slate-50
-                flex
-                items-center
-                justify-end
-                gap-3
-              "
-            >
-              <button
-                type="button"
-                onClick={closePayment}
-                disabled={!!processingId}
-                className="
-                  px-5
-                  py-2.5
-                  rounded-xl
-                  border
-                  border-slate-200
-                  bg-white
-                  text-slate-700
-                  font-bold
-                  text-sm
-                  hover:bg-slate-50
-                  disabled:opacity-50
-                "
-              >
-                Bekor qilish
-              </button>
-
-              <button
-                type="button"
-                disabled={
-                  processingId ===
-                  selectedOrder.id
-                }
-                onClick={handlePayment}
-                className="
-                  px-5
-                  py-2.5
-                  rounded-xl
-                  bg-blue-600
-                  text-white
-                  font-bold
-                  text-sm
-                  hover:bg-blue-700
-                  flex
-                  items-center
-                  gap-2
-                  disabled:opacity-50
-                "
-              >
-                {processingId ===
-                selectedOrder.id ? (
-                  <>
-                    <RefreshCw
-                      size={16}
-                      className="animate-spin"
-                    />
-                    Saqlanmoqda...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle size={16} />
-                    To'landi deb belgilash
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ORDER DETAILS MODAL */}
-      {selectedOrder && !paymentModal && (
-        <div
-          className="
-            fixed
-            inset-0
-            z-50
-            flex
-            items-center
-            justify-center
-            bg-slate-900/40
-            backdrop-blur-sm
-            p-4
-          "
-        >
-          <div
-            className="
-              bg-white
-              w-full
-              max-w-lg
-              rounded-2xl
-              border
-              border-slate-200
-              shadow-2xl
-              overflow-hidden
-              max-h-[90vh]
-              flex
-              flex-col
-            "
-          >
-            <div
-              className="
-                px-6
-                py-5
-                border-b
-                border-slate-100
-                flex
-                items-center
-                justify-between
-                shrink-0
-              "
-            >
-              <h3 className="text-xl font-black text-slate-900">
-                Buyurtma tafsilotlari
-              </h3>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedOrder(null)
-                }
-                className="
-                  w-9
-                  h-9
-                  rounded-xl
-                  border
-                  border-slate-200
-                  bg-white
-                  text-slate-500
-                  flex
-                  items-center
-                  justify-center
-                  hover:bg-slate-50
-                "
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div
-              className="
-                p-6
-                overflow-y-auto
-                space-y-6
-                flex-1
-              "
-            >
-              <div
-                className="
-                  grid
-                  grid-cols-2
-                  gap-4
-                  text-sm
-                  bg-slate-50
-                  p-4
-                  rounded-xl
-                  border
-                  border-slate-100
-                "
-              >
-                <div>
-                  <span className="text-slate-400 block text-xs">
-                    Sana
-                  </span>
-
-                  <span className="font-bold text-slate-700">
-                    {formatDate(
-                      selectedOrder.createdAt
-                    )}
-                  </span>
                 </div>
 
-                <div>
-                  <span className="text-slate-400 block text-xs">
-                    Holat
-                  </span>
-
-                  <span
-                    className={`
-                      inline-block
-                      mt-1
-                      px-2.5
-                      py-0.5
-                      rounded-md
-                      text-xs
-                      font-bold
-                      ${getStatusClass(
-                        selectedOrder.status
-                      )}
-                    `}
-                  >
-                    {getStatusLabel(
-                      selectedOrder.status
-                    )}
-                  </span>
-                </div>
-
-                {selectedOrder.tableNumber && (
-                  <div>
-                    <span className="text-slate-400 block text-xs">
-                      Stol raqami
-                    </span>
-
-                    <span className="font-bold text-slate-700">
-                      {selectedOrder.tableNumber}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                <h4 className="font-extrabold text-slate-800 text-sm">
-                  Buyurtma tarkibi
-                </h4>
-
-                <div
-                  className="
-                    border
-                    border-slate-200
-                    rounded-xl
-                    overflow-hidden
-                    divide-y
-                    divide-slate-100
-                  "
-                >
-                  {getItems(selectedOrder).length ===
-                  0 ? (
-                    <div className="p-4 text-center text-slate-400 text-sm">
-                      Mahsulotlar mavjud emas
-                    </div>
-                  ) : (
-                    getItems(selectedOrder).map(
-                      (item, idx) => {
-                        const quantity =
-                          Number(
-                            item.quantity
-                          ) || 1;
-
-                        const price =
-                          Number(
-                            item.price
-                          ) || 0;
-
-                        return (
-                          <div
-                            key={idx}
-                            className="
-                              p-3.5
-                              flex
-                              items-center
-                              justify-between
-                              text-sm
-                            "
-                          >
-                            <div>
-                              <div className="font-bold text-slate-800">
-                                {item.name ||
-                                  item.title ||
-                                  "Noma'lum mahsulot"}
-                              </div>
-
-                              <div className="text-xs text-slate-400">
-                                {quantity} x{" "}
-                                {formatMoney(
-                                  price
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="font-bold text-slate-700">
-                              {formatMoney(
-                                quantity *
-                                  price
-                              )}
-                            </div>
-                          </div>
-                        );
-                      }
-                    )
-                  )}
-                </div>
               </div>
 
               <div
                 className="
+                  px-6
+                  py-4
                   border-t
                   border-slate-100
-                  pt-4
+                  bg-slate-50
                   flex
                   items-center
-                  justify-between
-                  text-base
+                  justify-end
+                  gap-3
+                  shrink-0
                 "
               >
-                <span className="font-bold text-slate-500">
-                  Jami summa:
-                </span>
 
-                <span className="font-black text-blue-600 text-xl">
-                  {formatMoney(
-                    getTotal(selectedOrder)
-                  )}
-                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedOrder(null)
+                  }
+                  className="
+                    px-5
+                    py-2.5
+                    rounded-xl
+                    border
+                    border-slate-200
+                    bg-white
+                    text-slate-700
+                    font-bold
+                    text-sm
+                    hover:bg-slate-50
+                  "
+                >
+                  Yopish
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const orderToPay =
+                      selectedOrder;
+
+                    setSelectedOrder(
+                      null
+                    );
+
+                    openPayment(
+                      orderToPay
+                    );
+                  }}
+                  className="
+                    px-5
+                    py-2.5
+                    rounded-xl
+                    bg-blue-600
+                    text-white
+                    font-bold
+                    text-sm
+                    hover:bg-blue-700
+                    flex
+                    items-center
+                    gap-2
+                  "
+                >
+
+                  <CreditCard size={16} />
+
+                  To'lov qilish
+
+                </button>
+
               </div>
+
             </div>
 
-            <div
-              className="
-                px-6
-                py-4
-                border-t
-                border-slate-100
-                bg-slate-50
-                flex
-                items-center
-                justify-end
-                gap-3
-                shrink-0
-              "
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedOrder(null)
-                }
-                className="
-                  px-5
-                  py-2.5
-                  rounded-xl
-                  border
-                  border-slate-200
-                  bg-white
-                  text-slate-700
-                  font-bold
-                  text-sm
-                  hover:bg-slate-50
-                "
-              >
-                Yopish
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const orderToPay =
-                    selectedOrder;
-
-                  setSelectedOrder(null);
-
-                  openPayment(
-                    orderToPay
-                  );
-                }}
-                className="
-                  px-5
-                  py-2.5
-                  rounded-xl
-                  bg-blue-600
-                  text-white
-                  font-bold
-                  text-sm
-                  hover:bg-blue-700
-                  flex
-                  items-center
-                  gap-2
-                "
-              >
-                <CreditCard size={16} />
-                To'lov qilish
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+
+        )}
+
     </div>
   );
 }

@@ -1,12 +1,29 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+} from "react";
+
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db, secondaryAuth } from "../firebase/config.js";
+
+import {
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+
+import {
+  auth,
+  db,
+  secondaryAuth,
+} from "../firebase/config.js";
 
 const AuthContext = createContext();
 
@@ -20,144 +37,280 @@ export function AuthProvider({ children }) {
   const [cafeId, setCafeId] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Foydalanuvchi ma'lumotlarini Firestore'dan olish
+  // ==========================================
+  // FIRESTORE'DAN USER MA'LUMOTLARINI OLISH
+  // ==========================================
+
   const fetchUserData = async (uid) => {
     try {
       const userDocRef = doc(db, "users", uid);
       const userDocSnap = await getDoc(userDocRef);
+
       if (userDocSnap.exists()) {
         const data = userDocSnap.data();
+
         setRole(data.role || null);
         setCafeId(data.cafeId || null);
+
         return data;
-      } else {
-        setRole(null);
-        setCafeId(null);
-        return null;
       }
-    } catch (error) {
-      console.error("Foydalanuvchi ma'lumotlarini olishda xatolik:", error);
+
       setRole(null);
       setCafeId(null);
+
+      return null;
+    } catch (error) {
+      console.error(
+        "Foydalanuvchi ma'lumotlarini olishda xatolik:",
+        error
+      );
+
+      setRole(null);
+      setCafeId(null);
+
       return null;
     }
   };
 
-  // Ro'yxatdan o'tish (Agar email ishlatilsa)
+  // ==========================================
+  // ODDIY RO'YXATDAN O'TISH
+  // ==========================================
+
   const register = async (email, password) => {
-    const userCredential = await createUserWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
-    return userCredential.user;
-  };
-
-  // XODIM YARATISH (Username orqali - avtomatik @kafe.uz qo'shiladi)
-  const registerStaff = async (usernameOrEmail, password, extraData = {}) => {
-    if (!secondaryAuth) {
-      console.error("secondaryAuth Firebase config faylida topilmadi!");
-      throw new Error("Firebase secondaryAuth sozlanmagan.");
-    }
-
-    try {
-      // Agar kiritilgan qiymatda @ belgisi bo'lmasa, uni username deb bilib @kafe.uz qo'shamiz
-      const email = usernameOrEmail.includes("@") 
-        ? usernameOrEmail 
-        : `${usernameOrEmail.trim().toLowerCase()}@kafe.uz`;
-
-      const userCredential = await createUserWithEmailAndPassword(
-        secondaryAuth,
-        email,
-        password
-      );
-      const newUser = userCredential.user;
-
-      await setDoc(doc(db, "users", newUser.uid), {
-        email,
-        username: usernameOrEmail.includes("@") ? "" : usernameOrEmail.trim(),
-        fullName: extraData.fullName || "",
-        role: extraData.role || "waiter",
-        cafeId: extraData.cafeId || cafeId,
-        phone: extraData.phone || "",
-        status: extraData.status || "active",
-        createdAt: serverTimestamp(),
-      });
-
-      await signOut(secondaryAuth);
-      return newUser;
-    } catch (error) {
-      console.error("Xodim yaratishda xatolik:", error);
-      throw error;
-    }
-  };
-
-  // KIRISH (Username yoki Email orqali ishlashi uchun moslashtirildi)
-  const login = async (usernameOrEmail, password) => {
-    setLoading(true);
-    try {
-      // Agar @ belgisi bo'lmasa, uni avtomatik emailga (username@kafe.uz) aylantiramiz
-      const email = usernameOrEmail.includes("@") 
-        ? usernameOrEmail 
-        : `${usernameOrEmail.trim().toLowerCase()}@kafe.uz`;
-
-      const userCredential = await signInWithEmailAndPassword(
+    const userCredential =
+      await createUserWithEmailAndPassword(
         auth,
         email,
         password
       );
 
-      const data = await fetchUserData(userCredential.user.uid);
-      setLoading(false);
-      return data?.role || null;
+    return userCredential.user;
+  };
+
+  // ==========================================
+  // XODIM YARATISH
+  // ==========================================
+
+  const registerStaff = async (
+    usernameOrEmail,
+    password,
+    extraData = {}
+  ) => {
+    if (!secondaryAuth) {
+      console.error(
+        "secondaryAuth Firebase config faylida topilmadi!"
+      );
+
+      throw new Error(
+        "Firebase secondaryAuth sozlanmagan."
+      );
+    }
+
+    try {
+      // Username bo'lsa avtomatik @kafe.uz qo'shiladi
+      const email = usernameOrEmail.includes("@")
+        ? usernameOrEmail.trim().toLowerCase()
+        : `${usernameOrEmail.trim().toLowerCase()}@kafe.uz`;
+
+      console.log("Xodim yaratilmoqda:", email);
+
+      // Firebase Authentication'da user yaratish
+      const userCredential =
+        await createUserWithEmailAndPassword(
+          secondaryAuth,
+          email,
+          password
+        );
+
+      const newUser = userCredential.user;
+
+      // Firestore'ga user ma'lumotlarini yozish
+      await setDoc(
+        doc(db, "users", newUser.uid),
+        {
+          email: email,
+
+          username: usernameOrEmail.includes("@")
+            ? usernameOrEmail.split("@")[0].trim()
+            : usernameOrEmail.trim(),
+
+          fullName: extraData.fullName || "",
+
+          role: extraData.role || "waiter",
+
+          cafeId: extraData.cafeId || cafeId,
+
+          phone: extraData.phone || "",
+
+          salary: Number(extraData.salary) || 0,
+
+          status: extraData.status || "active",
+
+          createdAt: serverTimestamp(),
+        }
+      );
+
+      // Secondary auth'dan chiqamiz
+      await signOut(secondaryAuth);
+
+      console.log(
+        "Xodim muvaffaqiyatli yaratildi:",
+        email
+      );
+
+      return newUser;
+
     } catch (error) {
-      setLoading(false);
+      console.error(
+        "Xodim yaratishda xatolik:",
+        error
+      );
+
       throw error;
     }
   };
-  const setAuthData = ({ user, role, cafeId }) => {
-  setUser(user || null);
-  setRole(role || null);
-  setCafeId(cafeId || null);
-};
 
-  // Chiqish
-  const logout = async () => {
+  // ==========================================
+  // LOGIN
+  // ==========================================
+
+  const login = async (
+    usernameOrEmail,
+    password
+  ) => {
     setLoading(true);
-    await signOut(auth);
-    setUser(null);
-    setRole(null);
-    setCafeId(null);
-    setLoading(false);
+
+    try {
+      // Username kiritilsa @kafe.uz qo'shamiz
+      const email = usernameOrEmail.includes("@")
+        ? usernameOrEmail.trim().toLowerCase()
+        : `${usernameOrEmail.trim().toLowerCase()}@kafe.uz`;
+
+      console.log("Login qilinmoqda:", email);
+
+      // Firebase Authentication orqali kirish
+      const userCredential =
+        await signInWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+
+      const currentUser = userCredential.user;
+
+      // Firestore'dan role/cafeId olish
+      const data = await fetchUserData(
+        currentUser.uid
+      );
+
+      setUser(currentUser);
+
+      setLoading(false);
+
+      return data?.role || null;
+
+    } catch (error) {
+      console.error(
+        "Login xatoligi:",
+        error
+      );
+
+      setLoading(false);
+
+      throw error;
+    }
   };
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setLoading(true);
-      if (currentUser) {
-        setUser(currentUser);
-        await fetchUserData(currentUser.uid);
-      } else {
-        setUser(null);
-        setRole(null);
-        setCafeId(null);
-      }
+  // ==========================================
+  // AUTH DATA
+  // ==========================================
+
+  const setAuthData = ({
+    user,
+    role,
+    cafeId,
+  }) => {
+    setUser(user || null);
+    setRole(role || null);
+    setCafeId(cafeId || null);
+  };
+
+  // ==========================================
+  // LOGOUT
+  // ==========================================
+
+  const logout = async () => {
+    setLoading(true);
+
+    try {
+      await signOut(auth);
+
+      setUser(null);
+      setRole(null);
+      setCafeId(null);
+
+    } catch (error) {
+      console.error(
+        "Logout xatoligi:",
+        error
+      );
+
+      throw error;
+
+    } finally {
       setLoading(false);
-    });
+    }
+  };
+
+  // ==========================================
+  // AUTH HOLATINI KUZATISH
+  // ==========================================
+
+  useEffect(() => {
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        async (currentUser) => {
+
+          setLoading(true);
+
+          if (currentUser) {
+            setUser(currentUser);
+
+            await fetchUserData(
+              currentUser.uid
+            );
+
+          } else {
+            setUser(null);
+            setRole(null);
+            setCafeId(null);
+          }
+
+          setLoading(false);
+        }
+      );
+
     return () => unsubscribe();
   }, []);
 
+  // ==========================================
+  // CONTEXT
+  // ==========================================
+
   const value = {
-  user,
-  role,
-  cafeId,
-  loading,
-  login,
-  register,
-  registerStaff,
-  logout,
-  setAuthData,
-};
+    user,
+    role,
+    cafeId,
+    loading,
+
+    login,
+    register,
+    registerStaff,
+    logout,
+
+    setAuthData,
+  };
 
   return (
     <AuthContext.Provider value={value}>

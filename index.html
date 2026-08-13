@@ -1,16 +1,120 @@
 <!doctype html>
-<html lang="en">
+<html lang="uz">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-<title> 𝒜ℐ 𝒞𝒶𝒻ℯ </title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+
+    <!-- Favicon -->
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="/favicon.ico"
+    />
+
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="/favicon-32x32.png"
+    />
+
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="/favicon-16x16.png"
+    />
+
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/apple-touch-icon.png"
+    />
+
+    <!-- Sahifa nomi -->
+    <title>𝒜ℐ 𝒞𝒶𝒻ℯ</title>
+
+    <!-- =========================
+         CHEK UCHUN PRINT CSS
+    ========================== -->
+    <style>
+      @media print {
+        @page {
+          size: 80mm auto;
+          margin: 0;
+        }
+
+        html,
+        body {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 80mm !important;
+          background: white !important;
+        }
+
+        body {
+          font-family:
+            Arial,
+            Helvetica,
+            sans-serif;
+        }
+
+        /* Oddiy saytni print qilmaslik */
+        body * {
+          visibility: hidden;
+        }
+
+        /* Faqat chek ko'rinsin */
+        #receipt-print,
+        #receipt-print * {
+          visibility: visible;
+        }
+
+        #receipt-print {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+
+          width: 80mm !important;
+          max-width: 80mm !important;
+
+          margin: 0 !important;
+          padding: 4mm !important;
+
+          background: white !important;
+          color: black !important;
+
+          box-sizing: border-box;
+        }
+
+        #receipt-print table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+
+        #receipt-print img {
+          max-width: 100%;
+        }
+
+        #receipt-print * {
+          color: black !important;
+          box-shadow: none !important;
+        }
+      }
+    </style>
   </head>
+
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+
+    <!-- React -->
+    <script
+      type="module"
+      src="/src/main.jsx"
+    ></script>
   </body>
 </html>

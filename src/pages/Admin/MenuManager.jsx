@@ -129,45 +129,6 @@ export default function AdminMenu() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 w-full flex flex-col font-sans">
-      {/* HEADER / NAVBAR */}
-      <header className="bg-white border-b border-slate-200 px-4 py-3 sm:px-8 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-3">
-          <span className="text-xl">👑</span>
-          <span className="font-bold text-lg text-slate-900">Control Hub</span>
-          <span className="bg-amber-100 text-amber-700 text-[11px] font-bold px-2 py-0.5 rounded uppercase">
-            Admin
-          </span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-slate-500 hidden sm:inline">
-            {currentUser?.email || "Admin"}
-          </span>
-
-          <button
-            onClick={() => setLogoutModalOpen(true)}
-            className="flex items-center gap-1.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            Chiqish
-          </button>
-        </div>
-      </header>
-
       {/* ASOSIY KONTENT */}
       <main className="max-w-5xl w-full mx-auto p-4 sm:p-6 flex-1">
         <div className="flex items-center justify-between mb-6">
