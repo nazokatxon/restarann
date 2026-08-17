@@ -1,17 +1,10 @@
-// firebase.js
-import { initializeApp } from "firebase/app";
-import { 
-  initializeAuth, 
-  indexedDBLocalPersistence, 
-  inMemoryPersistence, 
-  browserPopupRedirectResolver 
-} from "firebase/auth";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
-// 1. Sizning yangi Firebase konfiguratsiyangiz
 const firebaseConfig = {
-  apiKey: "AIzaSyCG_2OrLoKRVCo67huOQgW4cHxZ6Kt0pXM",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCG_2OrLoKRVCo67huOQgW4cHxZ6Kt0pXM",
   authDomain: "restourant-e6cce.firebaseapp.com",
   projectId: "restourant-e6cce",
   storageBucket: "restourant-e6cce.firebasestorage.app",
@@ -20,30 +13,22 @@ const firebaseConfig = {
   measurementId: "G-5TNRN204JG"
 };
 
-// 2. Asosiy va ikkilamchi ilovalarni ishga tushirish
-const app = initializeApp(firebaseConfig);
-const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+// 1. App mavjud bo'lsa shuni oladi, bo'lmasa yaratadi
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const secondaryApp = getApps().find(a => a.name === "Secondary") 
+  || initializeApp(firebaseConfig, "Secondary");
 
-// 3. Analytics (xavfsiz ishga tushirish)
-let analytics;
-isSupported().then((supported) => {
-  if (supported) {
-    analytics = getAnalytics(app);
-  }
-});
+// 2. Standart getAuth (Initalize xatolarining oldini oladi)
+export const auth = getAuth(app);
+export const secondaryAuth = getAuth(secondaryApp);
 
-// 4. Asosiy Auth (Doimiy sessiya - IndexedDB)
-export const auth = initializeAuth(app, {
-  persistence: indexedDBLocalPersistence,
-  popupRedirectResolver: browserPopupRedirectResolver,
-});
-
-// 5. Firestore ma'lumotlar bazasi
+// 3. Firestore
 export const db = getFirestore(app);
 
-// 6. Secondary Auth (Vaqtinchalik sessiya - InMemory)
-// Admin sessiyasini buzmagan holda xodimlarni boshqarish uchun
-export const secondaryAuth = initializeAuth(secondaryApp, {
-  persistence: inMemoryPersistence,
-  popupRedirectResolver: browserPopupRedirectResolver,
-});
+// 4. Analytics
+export let analytics;
+isSupported().then((supported) => {
+  if (supported) analytics = getAnalytics(app);
+}).catch((err) => console.warn(err));
+
+export default app;
