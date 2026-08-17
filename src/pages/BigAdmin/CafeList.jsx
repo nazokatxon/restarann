@@ -10,7 +10,6 @@ import {
 import { db } from "../../firebase/config.js";
 import { useAuth } from "../../context/AuthContext";
 import { useTranslation } from "react-i18next";
-import Navbar from "../../components/Navbar";
 import "./CafeList.css";
 
 // Mahalliy tarjimalar lug'ati
@@ -34,7 +33,8 @@ const translations = {
     edit_btn: "Tahrirlash",
     delete_btn: "O'chirish",
     modal_add_title: "Yangi kafe qo'shish",
-    modal_add_desc: "Yangi kafe va uning direktor hisobini shu yerda yarating",
+    modal_add_desc:
+      "Yangi kafe va uning direktor hisobini shu yerda yarating",
     cafe_name_label: "Kafe nomi",
     cafe_name_placeholder: "Masalan: Gusto Cafe",
     owner_name_label: "Egasi (direktor) ismi",
@@ -56,6 +56,7 @@ const translations = {
     modal_edit_desc: "Kafe ma'lumotlarini yangilash",
     update_btn: "Yangilash",
   },
+
   ru: {
     big_admin_cafes: "Big Admin — Кафе",
     add_cafe_btn: "Добавить кафе",
@@ -75,7 +76,8 @@ const translations = {
     edit_btn: "Редактировать",
     delete_btn: "Удалить",
     modal_add_title: "Добавить новое кафе",
-    modal_add_desc: "Создайте новое кафе и аккаунт директора здесь",
+    modal_add_desc:
+      "Создайте новое кафе и аккаунт директора здесь",
     cafe_name_label: "Название кафе",
     cafe_name_placeholder: "Например: Gusto Cafe",
     owner_name_label: "Имя владельца (директора)",
@@ -102,6 +104,7 @@ const translations = {
 export default function CafeList() {
   const { t, i18n } = useTranslation();
   const { registerStaff } = useAuth();
+
   const [cafes, setCafes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -109,6 +112,11 @@ export default function CafeList() {
   const [selectedCafe, setSelectedCafe] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState("all");
+
+  // O'chirish modal holatlari
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteCafe, setDeleteCafe] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -138,32 +146,51 @@ export default function CafeList() {
   const getText = (key) => {
     const currentLang =
       i18n.language || localStorage.getItem("i18nextLng") || "uz";
+
     const translated = t(key);
+
     if (translated && translated !== key) return translated;
-    return translations[currentLang]?.[key] || translations["uz"]?.[key] || key;
+
+    return (
+      translations[currentLang]?.[key] ||
+      translations["uz"]?.[key] ||
+      key
+    );
   };
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "cafes"), (snapshot) => {
-      const data = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
-      setCafes(data);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      collection(db, "cafes"),
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+
+        setCafes(data);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleEditChange = (e) => {
     const { name, value } = e.target;
-    setEditForm((prev) => ({ ...prev, [name]: value }));
+
+    setEditForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const resetForm = () => {
@@ -198,6 +225,7 @@ export default function CafeList() {
     }
 
     setSubmitting(true);
+
     try {
       const cafeDocRef = await addDoc(collection(db, "cafes"), {
         name: form.name,
@@ -210,7 +238,9 @@ export default function CafeList() {
         createdAt: new Date(),
       });
 
-      const fullEmail = `${form.ownerUsername.trim().toLowerCase()}@kafe.com`;
+      const fullEmail = `${form.ownerUsername
+        .trim()
+        .toLowerCase()}@kafe.com`;
 
       await registerStaff(fullEmail, form.ownerPassword, {
         fullName: form.ownerName,
@@ -223,6 +253,7 @@ export default function CafeList() {
 
       setModalOpen(false);
       resetForm();
+
       alert("Kafe muvaffaqiyatli qo'shildi!");
     } catch (error) {
       console.error("Kafe qo'shishda xatolik:", error);
@@ -234,6 +265,7 @@ export default function CafeList() {
 
   const openEditModal = (cafe) => {
     setSelectedCafe(cafe);
+
     setEditForm({
       name: cafe.name || "",
       ownerName: cafe.ownerName || "",
@@ -242,14 +274,17 @@ export default function CafeList() {
       contractStart: cafe.contractStart || "",
       contractEnd: cafe.contractEnd || "",
     });
+
     setEditModalOpen(true);
   };
 
   const handleUpdateCafe = async (e) => {
     e.preventDefault();
+
     if (!selectedCafe) return;
 
     setSubmitting(true);
+
     try {
       await updateDoc(doc(db, "cafes", selectedCafe.id), {
         name: editForm.name,
@@ -262,6 +297,7 @@ export default function CafeList() {
 
       setEditModalOpen(false);
       setSelectedCafe(null);
+
       alert("Kafe ma'lumotlari muvaffaqiyatli yangilandi!");
     } catch (error) {
       console.error("Tahrirlashda xatolik:", error);
@@ -271,19 +307,39 @@ export default function CafeList() {
     }
   };
 
-  const handleDeleteCafe = async (cafeId, cafeName) => {
-    if (window.confirm(`"${cafeName}" kafesini o'chirib yubormoqchimisiz?`)) {
-      try {
-        await deleteDoc(doc(db, "cafes", cafeId));
-      } catch (error) {
-        console.error("O'chirishda xatolik:", error);
-        alert("O'chirishda xatolik yuz berdi.");
-      }
+  // O'CHIRISH MODALINI OCHISH
+  const handleDeleteCafe = (cafeId, cafeName) => {
+    setDeleteCafe({
+      id: cafeId,
+      name: cafeName,
+    });
+
+    setDeleteModalOpen(true);
+  };
+
+  // HA - O'CHIRISH
+  const confirmDeleteCafe = async () => {
+    if (!deleteCafe) return;
+
+    setDeleting(true);
+
+    try {
+      await deleteDoc(doc(db, "cafes", deleteCafe.id));
+
+      setDeleteModalOpen(false);
+      setDeleteCafe(null);
+    } catch (error) {
+      console.error("O'chirishda xatolik:", error);
+      alert("O'chirishda xatolik yuz berdi.");
+    } finally {
+      setDeleting(false);
     }
   };
 
   const toggleCafeStatus = async (cafe) => {
-    const newStatus = cafe.status === "active" ? "blocked" : "active";
+    const newStatus =
+      cafe.status === "active" ? "blocked" : "active";
+
     const confirmMsg =
       newStatus === "blocked"
         ? `"${cafe.name}" kafesini bloklashga ishonchingiz komilmi?`
@@ -296,35 +352,53 @@ export default function CafeList() {
         status: newStatus,
       });
     } catch (error) {
-      console.error("Statusni yangilashda xatolik:", error);
+      console.error(
+        "Statusni yangilashda xatolik:",
+        error
+      );
     }
   };
 
   const filteredCafes = cafes.filter((cafe) => {
     if (filter === "all") return true;
+
     return cafe.status === filter;
   });
 
-  const activeCount = cafes.filter((c) => c.status === "active").length;
-  const blockedCount = cafes.filter((c) => c.status === "blocked").length;
+  const activeCount = cafes.filter(
+    (c) => c.status === "active"
+  ).length;
+
+  const blockedCount = cafes.filter(
+    (c) => c.status === "blocked"
+  ).length;
 
   const isContractExpiringSoon = (endDate) => {
     if (!endDate) return false;
+
     const end = new Date(endDate);
     const now = new Date();
-    const diffDays = (end - now) / (1000 * 60 * 60 * 24);
+
+    const diffDays =
+      (end - now) / (1000 * 60 * 60 * 24);
+
     return diffDays >= 0 && diffDays <= 7;
   };
 
   const isContractExpired = (endDate) => {
     if (!endDate) return false;
+
     return new Date(endDate) < new Date();
   };
 
   if (loading) {
     return (
-      <div style={{ backgroundColor: "#f9fafb", minHeight: "100vh" }}>
-        <Navbar />
+      <div
+        style={{
+          backgroundColor: "#f9fafb",
+          minHeight: "100vh",
+        }}
+      >
         <div
           style={{
             display: "flex",
@@ -333,21 +407,31 @@ export default function CafeList() {
             height: "256px",
           }}
         >
-          <p style={{ color: "#9ca3af", fontSize: "18px" }}>Yuklanmoqda...</p>
+          <p
+            style={{
+              color: "#9ca3af",
+              fontSize: "18px",
+            }}
+          >
+            Yuklanmoqda...
+          </p>
         </div>
       </div>
     );
   }
 
   const currentLang =
-    i18n.language || localStorage.getItem("i18nextLng") || "uz";
+    i18n.language ||
+    localStorage.getItem("i18nextLng") ||
+    "uz";
 
   return (
-    /* Butun sahifani o'rab turuvchi och kulrang fonli konteyner */
-    <div style={{ backgroundColor: "#f9fafb", minHeight: "100vh" }}>
-      <Navbar />
-
-      {/* Eng tashqi konteyner — Kenglik to'liq 100% va maksimal 1000px */}
+    <div
+      style={{
+        backgroundColor: "#f9fafb",
+        minHeight: "100vh",
+      }}
+    >
       <div
         style={{
           padding: "20px 16px",
@@ -381,52 +465,87 @@ export default function CafeList() {
             {getText("big_admin_cafes")}
           </h1>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            {/* Tillar tugmasi */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+            }}
+          >
+            {/* TILLAR */}
             <div
               style={{
                 display: "flex",
-                gap: "4px",
-                backgroundColor: "#374151",
-                padding: "4px",
-                borderRadius: "8px",
+                alignItems: "center",
+                gap: "3px",
+                backgroundColor: "#f3f4f6",
+                padding: "3px",
+                borderRadius: "12px",
+                border: "1px solid #e5e7eb",
+                boxShadow:
+                  "0 2px 6px rgba(0,0,0,0.06)",
               }}
             >
               <button
                 onClick={() => changeLanguage("uz")}
                 style={{
-                  padding: "6px 12px",
+                  width: "42px",
+                  height: "30px",
+                  padding: 0,
                   fontSize: "12px",
-                  fontWeight: "bold",
-                  borderRadius: "6px",
+                  fontWeight: "700",
+                  borderRadius: "9px",
                   border: "none",
                   cursor: "pointer",
                   backgroundColor:
-                    currentLang === "uz" ? "#d97706" : "transparent",
-                  color: currentLang === "uz" ? "#ffffff" : "#d1d5db",
+                    currentLang === "uz"
+                      ? "#d97706"
+                      : "transparent",
+                  color:
+                    currentLang === "uz"
+                      ? "#ffffff"
+                      : "#6b7280",
+                  boxShadow:
+                    currentLang === "uz"
+                      ? "0 2px 5px rgba(217,119,6,0.25)"
+                      : "none",
+                  transition: "all 0.2s ease",
                 }}
               >
                 UZ
               </button>
+
               <button
                 onClick={() => changeLanguage("ru")}
                 style={{
-                  padding: "6px 12px",
+                  width: "42px",
+                  height: "30px",
+                  padding: 0,
                   fontSize: "12px",
-                  fontWeight: "bold",
-                  borderRadius: "6px",
+                  fontWeight: "700",
+                  borderRadius: "9px",
                   border: "none",
                   cursor: "pointer",
                   backgroundColor:
-                    currentLang === "ru" ? "#d97706" : "transparent",
-                  color: currentLang === "ru" ? "#ffffff" : "#d1d5db",
+                    currentLang === "ru"
+                      ? "#d97706"
+                      : "transparent",
+                  color:
+                    currentLang === "ru"
+                      ? "#ffffff"
+                      : "#6b7280",
+                  boxShadow:
+                    currentLang === "ru"
+                      ? "0 2px 5px rgba(217,119,6,0.25)"
+                      : "none",
+                  transition: "all 0.2s ease",
                 }}
               >
                 RU
               </button>
             </div>
 
-            {/* Kafe qo'shish tugmasi */}
+            {/* KAFE QO'SHISH */}
             <button
               onClick={() => setModalOpen(true)}
               style={{
@@ -446,11 +565,12 @@ export default function CafeList() {
           </div>
         </div>
 
-        {/* STATISTIKA KARTALARI */}
+        {/* STATISTIKA */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
+            gridTemplateColumns:
+              "repeat(3, 1fr)",
             gap: "12px",
             marginBottom: "20px",
             width: "100%",
@@ -462,12 +582,20 @@ export default function CafeList() {
               borderRadius: "12px",
               padding: "16px",
               textAlign: "center",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              boxShadow:
+                "0 1px 3px rgba(0,0,0,0.1)",
             }}
           >
-            <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
+            <p
+              style={{
+                fontSize: "12px",
+                color: "#6b7280",
+                margin: 0,
+              }}
+            >
               {getText("total")}
             </p>
+
             <p
               style={{
                 fontSize: "22px",
@@ -479,18 +607,27 @@ export default function CafeList() {
               {cafes.length}
             </p>
           </div>
+
           <div
             style={{
               backgroundColor: "#ffffff",
               borderRadius: "12px",
               padding: "16px",
               textAlign: "center",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              boxShadow:
+                "0 1px 3px rgba(0,0,0,0.1)",
             }}
           >
-            <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
+            <p
+              style={{
+                fontSize: "12px",
+                color: "#6b7280",
+                margin: 0,
+              }}
+            >
               {getText("active")}
             </p>
+
             <p
               style={{
                 fontSize: "22px",
@@ -502,18 +639,27 @@ export default function CafeList() {
               {activeCount}
             </p>
           </div>
+
           <div
             style={{
               backgroundColor: "#ffffff",
               borderRadius: "12px",
               padding: "16px",
               textAlign: "center",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              boxShadow:
+                "0 1px 3px rgba(0,0,0,0.1)",
             }}
           >
-            <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
+            <p
+              style={{
+                fontSize: "12px",
+                color: "#6b7280",
+                margin: 0,
+              }}
+            >
               {getText("blocked")}
             </p>
+
             <p
               style={{
                 fontSize: "22px",
@@ -527,12 +673,27 @@ export default function CafeList() {
           </div>
         </div>
 
-        {/* FILTER TUGMALARI */}
-        <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
+        {/* FILTER */}
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            marginBottom: "20px",
+          }}
+        >
           {[
-            { key: "all", label: getText("filter_all") },
-            { key: "active", label: getText("filter_active") },
-            { key: "blocked", label: getText("filter_blocked") },
+            {
+              key: "all",
+              label: getText("filter_all"),
+            },
+            {
+              key: "active",
+              label: getText("filter_active"),
+            },
+            {
+              key: "blocked",
+              label: getText("filter_blocked"),
+            },
           ].map((f) => (
             <button
               key={f.key}
@@ -543,9 +704,18 @@ export default function CafeList() {
                 fontSize: "14px",
                 fontWeight: "500",
                 cursor: "pointer",
-                backgroundColor: filter === f.key ? "#d97706" : "#ffffff",
-                color: filter === f.key ? "#ffffff" : "#374151",
-                border: filter === f.key ? "none" : "1px solid #d1d5db",
+                backgroundColor:
+                  filter === f.key
+                    ? "#d97706"
+                    : "#ffffff",
+                color:
+                  filter === f.key
+                    ? "#ffffff"
+                    : "#374151",
+                border:
+                  filter === f.key
+                    ? "none"
+                    : "1px solid #d1d5db",
               }}
             >
               {f.label}
@@ -555,7 +725,12 @@ export default function CafeList() {
 
         {/* KAFELAR RO'YXATI */}
         {filteredCafes.length === 0 ? (
-          <p style={{ color: "#9ca3af", fontSize: "14px" }}>
+          <p
+            style={{
+              color: "#9ca3af",
+              fontSize: "14px",
+            }}
+          >
             {getText("no_cafes_found")}
           </p>
         ) : (
@@ -574,7 +749,8 @@ export default function CafeList() {
                   backgroundColor: "#ffffff",
                   borderRadius: "14px",
                   padding: "18px",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  boxShadow:
+                    "0 1px 3px rgba(0,0,0,0.1)",
                   width: "100%",
                   boxSizing: "border-box",
                 }}
@@ -582,7 +758,8 @@ export default function CafeList() {
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
+                    justifyContent:
+                      "space-between",
                     alignItems: "flex-start",
                   }}
                 >
@@ -597,6 +774,7 @@ export default function CafeList() {
                     >
                       {cafe.name}
                     </h3>
+
                     <p
                       style={{
                         fontSize: "13px",
@@ -605,8 +783,10 @@ export default function CafeList() {
                         marginBottom: "2px",
                       }}
                     >
-                      {getText("owner_label")}: {cafe.ownerName}
+                      {getText("owner_label")}:{" "}
+                      {cafe.ownerName}
                     </p>
+
                     <p
                       style={{
                         fontSize: "13px",
@@ -616,6 +796,7 @@ export default function CafeList() {
                     >
                       {cafe.phone}
                     </p>
+
                     {cafe.address && (
                       <p
                         style={{
@@ -629,6 +810,7 @@ export default function CafeList() {
                       </p>
                     )}
                   </div>
+
                   <span
                     style={{
                       fontSize: "12px",
@@ -636,8 +818,13 @@ export default function CafeList() {
                       borderRadius: "9999px",
                       whiteSpace: "nowrap",
                       backgroundColor:
-                        cafe.status === "active" ? "#dcfce7" : "#fee2e2",
-                      color: cafe.status === "active" ? "#15803d" : "#b91c1c",
+                        cafe.status === "active"
+                          ? "#dcfce7"
+                          : "#fee2e2",
+                      color:
+                        cafe.status === "active"
+                          ? "#15803d"
+                          : "#b91c1c",
                       fontWeight: "600",
                     }}
                   >
@@ -647,7 +834,8 @@ export default function CafeList() {
                   </span>
                 </div>
 
-                {(cafe.contractStart || cafe.contractEnd) && (
+                {(cafe.contractStart ||
+                  cafe.contractEnd) && (
                   <div
                     style={{
                       marginTop: "10px",
@@ -655,9 +843,13 @@ export default function CafeList() {
                       color: "#6b7280",
                     }}
                   >
-                    {getText("contract_label")}: {cafe.contractStart || "?"} —{" "}
+                    {getText("contract_label")}:{" "}
+                    {cafe.contractStart || "?"} —{" "}
                     {cafe.contractEnd || "?"}
-                    {isContractExpired(cafe.contractEnd) && (
+
+                    {isContractExpired(
+                      cafe.contractEnd
+                    ) && (
                       <span
                         style={{
                           marginLeft: "8px",
@@ -665,11 +857,18 @@ export default function CafeList() {
                           fontWeight: "500",
                         }}
                       >
-                        {getText("contract_expired")}
+                        {getText(
+                          "contract_expired"
+                        )}
                       </span>
                     )}
-                    {!isContractExpired(cafe.contractEnd) &&
-                      isContractExpiringSoon(cafe.contractEnd) && (
+
+                    {!isContractExpired(
+                      cafe.contractEnd
+                    ) &&
+                      isContractExpiringSoon(
+                        cafe.contractEnd
+                      ) && (
                         <span
                           style={{
                             marginLeft: "8px",
@@ -677,13 +876,15 @@ export default function CafeList() {
                             fontWeight: "500",
                           }}
                         >
-                          {getText("contract_expiring_soon")}
+                          {getText(
+                            "contract_expiring_soon"
+                          )}
                         </span>
                       )}
                   </div>
                 )}
 
-                {/* TUGMALAR GURUHI */}
+                {/* TUGMALAR */}
                 <div
                   style={{
                     marginTop: "14px",
@@ -693,7 +894,9 @@ export default function CafeList() {
                   }}
                 >
                   <button
-                    onClick={() => toggleCafeStatus(cafe)}
+                    onClick={() =>
+                      toggleCafeStatus(cafe)
+                    }
                     style={{
                       fontSize: "12px",
                       padding: "6px 14px",
@@ -702,8 +905,13 @@ export default function CafeList() {
                       border: "none",
                       cursor: "pointer",
                       backgroundColor:
-                        cafe.status === "active" ? "#fee2e2" : "#dcfce7",
-                      color: cafe.status === "active" ? "#b91c1c" : "#15803d",
+                        cafe.status === "active"
+                          ? "#fee2e2"
+                          : "#dcfce7",
+                      color:
+                        cafe.status === "active"
+                          ? "#b91c1c"
+                          : "#15803d",
                     }}
                   >
                     {cafe.status === "active"
@@ -712,7 +920,9 @@ export default function CafeList() {
                   </button>
 
                   <button
-                    onClick={() => openEditModal(cafe)}
+                    onClick={() =>
+                      openEditModal(cafe)
+                    }
                     style={{
                       fontSize: "12px",
                       padding: "6px 14px",
@@ -728,7 +938,12 @@ export default function CafeList() {
                   </button>
 
                   <button
-                    onClick={() => handleDeleteCafe(cafe.id, cafe.name)}
+                    onClick={() =>
+                      handleDeleteCafe(
+                        cafe.id,
+                        cafe.name
+                      )
+                    }
                     style={{
                       fontSize: "12px",
                       padding: "6px 14px",
@@ -757,6 +972,7 @@ export default function CafeList() {
                   <h2 className="text-xl font-bold text-gray-800">
                     {getText("modal_add_title")}
                   </h2>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -768,24 +984,31 @@ export default function CafeList() {
                     ✕
                   </button>
                 </div>
+
                 <p className="text-xs text-gray-500 mt-1">
                   {getText("modal_add_desc")}
                 </p>
               </div>
 
               <div className="cafe-modal-body overflow-y-auto">
-                <form onSubmit={handleAddCafe} className="space-y-3.5">
+                <form
+                  onSubmit={handleAddCafe}
+                  className="space-y-3.5"
+                >
                   <div className="cafe-field">
                     <label className="cafe-field-label">
                       {getText("cafe_name_label")}
                     </label>
+
                     <input
                       type="text"
                       name="name"
                       value={form.name}
                       onChange={handleChange}
                       className="cafe-input"
-                      placeholder={getText("cafe_name_placeholder")}
+                      placeholder={getText(
+                        "cafe_name_placeholder"
+                      )}
                     />
                   </div>
 
@@ -793,13 +1016,16 @@ export default function CafeList() {
                     <label className="cafe-field-label">
                       {getText("owner_name_label")}
                     </label>
+
                     <input
                       type="text"
                       name="ownerName"
                       value={form.ownerName}
                       onChange={handleChange}
                       className="cafe-input"
-                      placeholder={getText("owner_name_placeholder")}
+                      placeholder={getText(
+                        "owner_name_placeholder"
+                      )}
                     />
                   </div>
 
@@ -807,6 +1033,7 @@ export default function CafeList() {
                     <label className="cafe-field-label">
                       {getText("phone_label")}
                     </label>
+
                     <input
                       type="text"
                       name="phone"
@@ -821,21 +1048,27 @@ export default function CafeList() {
                     <label className="cafe-field-label">
                       {getText("address_label")}
                     </label>
+
                     <input
                       type="text"
                       name="address"
                       value={form.address}
                       onChange={handleChange}
                       className="cafe-input"
-                      placeholder={getText("address_placeholder")}
+                      placeholder={getText(
+                        "address_placeholder"
+                      )}
                     />
                   </div>
 
                   <div className="cafe-field grid grid-cols-2 gap-2.5">
                     <div>
                       <label className="cafe-field-label">
-                        {getText("contract_start_label")}
+                        {getText(
+                          "contract_start_label"
+                        )}
                       </label>
+
                       <input
                         type="date"
                         name="contractStart"
@@ -844,10 +1077,14 @@ export default function CafeList() {
                         className="cafe-input"
                       />
                     </div>
+
                     <div>
                       <label className="cafe-field-label">
-                        {getText("contract_end_label")}
+                        {getText(
+                          "contract_end_label"
+                        )}
                       </label>
+
                       <input
                         type="date"
                         name="contractEnd"
@@ -860,32 +1097,46 @@ export default function CafeList() {
 
                   <div className="cafe-field cafe-director-section bg-amber-50 p-3 rounded-xl border border-amber-200">
                     <span className="cafe-director-badge block text-xs font-bold text-amber-700 mb-2">
-                      {getText("director_section_badge")}
+                      {getText(
+                        "director_section_badge"
+                      )}
                     </span>
+
                     <div className="mb-3">
                       <label className="cafe-field-label">
-                        {getText("owner_username_label")}
+                        {getText(
+                          "owner_username_label"
+                        )}
                       </label>
+
                       <input
                         type="text"
                         name="ownerUsername"
                         value={form.ownerUsername}
                         onChange={handleChange}
                         className="cafe-input"
-                        placeholder={getText("owner_username_placeholder")}
+                        placeholder={getText(
+                          "owner_username_placeholder"
+                        )}
                       />
                     </div>
+
                     <div>
                       <label className="cafe-field-label">
-                        {getText("owner_password_label")}
+                        {getText(
+                          "owner_password_label"
+                        )}
                       </label>
+
                       <input
                         type="text"
                         name="ownerPassword"
                         value={form.ownerPassword}
                         onChange={handleChange}
                         className="cafe-input"
-                        placeholder={getText("owner_password_placeholder")}
+                        placeholder={getText(
+                          "owner_password_placeholder"
+                        )}
                       />
                     </div>
                   </div>
@@ -896,8 +1147,11 @@ export default function CafeList() {
                       disabled={submitting}
                       className="cafe-add-btn flex-1 bg-amber-600 text-white py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
                     >
-                      {submitting ? getText("saving") : getText("save_btn")}
+                      {submitting
+                        ? getText("saving")
+                        : getText("save_btn")}
                     </button>
+
                     <button
                       type="button"
                       onClick={() => {
@@ -924,25 +1178,33 @@ export default function CafeList() {
                   <h2 className="text-xl font-bold text-gray-800">
                     {getText("modal_edit_title")}
                   </h2>
+
                   <button
                     type="button"
-                    onClick={() => setEditModalOpen(false)}
+                    onClick={() =>
+                      setEditModalOpen(false)
+                    }
                     className="text-gray-400 hover:text-gray-600 text-lg font-bold"
                   >
                     ✕
                   </button>
                 </div>
+
                 <p className="text-xs text-gray-500 mt-1">
                   {getText("modal_edit_desc")}
                 </p>
               </div>
 
               <div className="cafe-modal-body overflow-y-auto">
-                <form onSubmit={handleUpdateCafe} className="space-y-3.5">
+                <form
+                  onSubmit={handleUpdateCafe}
+                  className="space-y-3.5"
+                >
                   <div className="cafe-field">
                     <label className="cafe-field-label">
                       {getText("cafe_name_label")}
                     </label>
+
                     <input
                       type="text"
                       name="name"
@@ -956,6 +1218,7 @@ export default function CafeList() {
                     <label className="cafe-field-label">
                       {getText("owner_name_label")}
                     </label>
+
                     <input
                       type="text"
                       name="ownerName"
@@ -969,6 +1232,7 @@ export default function CafeList() {
                     <label className="cafe-field-label">
                       {getText("phone_label")}
                     </label>
+
                     <input
                       type="text"
                       name="phone"
@@ -982,6 +1246,7 @@ export default function CafeList() {
                     <label className="cafe-field-label">
                       {getText("address_label")}
                     </label>
+
                     <input
                       type="text"
                       name="address"
@@ -994,8 +1259,11 @@ export default function CafeList() {
                   <div className="cafe-field grid grid-cols-2 gap-2.5">
                     <div>
                       <label className="cafe-field-label">
-                        {getText("contract_start_label")}
+                        {getText(
+                          "contract_start_label"
+                        )}
                       </label>
+
                       <input
                         type="date"
                         name="contractStart"
@@ -1004,10 +1272,14 @@ export default function CafeList() {
                         className="cafe-input"
                       />
                     </div>
+
                     <div>
                       <label className="cafe-field-label">
-                        {getText("contract_end_label")}
+                        {getText(
+                          "contract_end_label"
+                        )}
                       </label>
+
                       <input
                         type="date"
                         name="contractEnd"
@@ -1024,17 +1296,177 @@ export default function CafeList() {
                       disabled={submitting}
                       className="cafe-add-btn flex-1 bg-amber-600 text-white py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
                     >
-                      {submitting ? getText("saving") : getText("update_btn")}
+                      {submitting
+                        ? getText("saving")
+                        : getText("update_btn")}
                     </button>
+
                     <button
                       type="button"
-                      onClick={() => setEditModalOpen(false)}
+                      onClick={() =>
+                        setEditModalOpen(false)
+                      }
                       className="cafe-cancel-btn flex-1 border border-gray-200 py-2.5 rounded-xl text-sm font-semibold text-gray-500"
                     >
                       {getText("cancel_btn")}
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================= */}
+        {/* O'CHIRISH MODALI */}
+        {/* ========================================= */}
+
+        {deleteModalOpen && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.55)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9999,
+              padding: "20px",
+              backdropFilter: "blur(4px)",
+            }}
+            onClick={() => {
+              if (!deleting) {
+                setDeleteModalOpen(false);
+                setDeleteCafe(null);
+              }
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "420px",
+                backgroundColor: "#ffffff",
+                borderRadius: "20px",
+                padding: "28px",
+                boxShadow:
+                  "0 20px 60px rgba(0,0,0,0.25)",
+                textAlign: "center",
+                animation:
+                  "deleteModalShow 0.2s ease-out",
+              }}
+              onClick={(e) =>
+                e.stopPropagation()
+              }
+            >
+              {/* ICON */}
+              <div
+                style={{
+                  width: "64px",
+                  height: "64px",
+                  margin: "0 auto 18px",
+                  borderRadius: "50%",
+                  backgroundColor: "#fee2e2",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "28px",
+                }}
+              >
+                🗑️
+              </div>
+
+              {/* TITLE */}
+              <h2
+                style={{
+                  margin: "0 0 10px",
+                  fontSize: "21px",
+                  fontWeight: "700",
+                  color: "#1f2937",
+                }}
+              >
+                Kafeni o'chirish
+              </h2>
+
+              {/* TEXT */}
+              <p
+                style={{
+                  margin: "0 auto",
+                  maxWidth: "330px",
+                  fontSize: "14px",
+                  lineHeight: "1.6",
+                  color: "#6b7280",
+                }}
+              >
+                <strong
+                  style={{
+                    color: "#374151",
+                  }}
+                >
+                  "{deleteCafe?.name}"
+                </strong>{" "}
+                kafesini o'chirmoqchimisiz?
+                <br />
+                Bu amalni ortga qaytarib bo'lmaydi.
+              </p>
+
+              {/* BUTTONS */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  marginTop: "24px",
+                }}
+              >
+                {/* YO'Q */}
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => {
+                    setDeleteModalOpen(false);
+                    setDeleteCafe(null);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    borderRadius: "10px",
+                    border:
+                      "1px solid #e5e7eb",
+                    backgroundColor: "#f9fafb",
+                    color: "#374151",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: deleting
+                      ? "not-allowed"
+                      : "pointer",
+                  }}
+                >
+                  Yo'q
+                </button>
+
+                {/* HA */}
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={confirmDeleteCafe}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    borderRadius: "10px",
+                    border: "none",
+                    backgroundColor: "#dc2626",
+                    color: "#ffffff",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: deleting
+                      ? "not-allowed"
+                      : "pointer",
+                    opacity: deleting ? 0.6 : 1,
+                  }}
+                >
+                  {deleting
+                    ? "O'chirilmoqda..."
+                    : "Ha, o'chirish"}
+                </button>
               </div>
             </div>
           </div>

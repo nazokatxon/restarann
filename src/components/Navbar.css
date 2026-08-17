@@ -1,55 +1,24 @@
-/* ==========================================================
-   NAVBAR
-========================================================== */
-
 .lightswind-nav {
-  position: sticky;
-  top: 0;
-  left: 0;
-
   width: 100%;
-  height: 68px;
+  min-height: 64px;
+  padding: 0 24px;
 
   display: flex;
   align-items: center;
   justify-content: space-between;
 
-  padding: 0 24px;
-
   background: rgba(255, 255, 255, 0.96);
-
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-
   border-bottom: 1px solid #e5e7eb;
 
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-
-  z-index: 90;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
 
   box-sizing: border-box;
 }
 
-/* ==========================================================
-   LEFT SIDE
-========================================================== */
-
-.lightswind-nav > div:first-child {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-/* ==========================================================
-   LOGO
-========================================================== */
-
+/* LOGO */
 .brand-logo-box {
   width: 42px;
   height: 42px;
-
-  flex: 0 0 42px;
 
   display: flex;
   align-items: center;
@@ -57,515 +26,96 @@
 
   border-radius: 13px;
 
-  color: #ffffff;
+  box-shadow:
+    0 4px 10px rgba(15, 23, 42, 0.12);
 
-  box-shadow: 0 4px 12px rgba(31, 41, 55, 0.16);
-
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: 0.2s ease;
 }
 
 .brand-logo-box:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(31, 41, 55, 0.2);
+  box-shadow:
+    0 6px 14px rgba(15, 23, 42, 0.16);
 }
 
-/* ==========================================================
-   BRAND TITLE
-========================================================== */
-
+/* CONTROL HUB / KAFE NOMI */
 .lightswind-nav h1 {
-  margin: 0;
-
-  font-size: 17px;
-  font-weight: 800;
-
-  line-height: 1;
-
-  color: #1f2937;
-
-  letter-spacing: -0.02em;
-
-  white-space: nowrap;
+  letter-spacing: -0.3px;
 }
 
-/* ==========================================================
-   VERSION
-========================================================== */
-
-.lightswind-nav h1 + span {
-  display: inline-flex;
-
-  align-items: center;
-  justify-content: center;
-
-  min-height: 20px;
-
-  padding: 3px 7px;
-
-  border-radius: 7px;
-
-  background: #fffbeb;
-
-  border: 1px solid #fde68a;
-
-  color: #d97706;
-
-  font-size: 9px;
-  font-weight: 800;
-
-  line-height: 1;
-
-  letter-spacing: 0.03em;
-}
-
-/* ==========================================================
-   RIGHT SIDE
-========================================================== */
-
-.lightswind-nav > div:last-child {
-  display: flex;
-  align-items: center;
-
-  gap: 10px;
-
-  flex-shrink: 0;
-}
-
-/* ==========================================================
-   LANGUAGE BUTTON
-========================================================== */
-
-.btn-tactile {
-  height: 40px;
-
-  display: inline-flex;
-
-  align-items: center;
-  justify-content: center;
-
-  gap: 7px;
-
-  padding: 0 12px;
-
-  border: 1px solid #e5e7eb;
-
-  border-radius: 12px;
-
-  background: #f8fafc;
-
-  color: #475569;
-
-  font-size: 13px;
-  font-weight: 700;
-
-  cursor: pointer;
-
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.15s ease,
-    box-shadow 0.2s ease;
-}
-
-.btn-tactile:hover {
-  background: #f1f5f9;
-
-  color: #1f2937;
-
-  border-color: #dbe1e8;
-
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
-}
-
-.btn-tactile:active {
-  transform: scale(0.95);
-}
-
-.btn-tactile span:first-child {
-  font-size: 16px;
-  line-height: 1;
-}
-
-/* ==========================================================
-   DIVIDER
-========================================================== */
-
-.nav-divider {
-  width: 1px;
-  height: 24px;
-
-  background: #e5e7eb;
-
-  flex-shrink: 0;
-}
-
-/* ==========================================================
-   PROFILE BUTTON
-========================================================== */
-
-.lightswind-nav .relative > button {
-  height: 40px;
-
-  display: flex;
-  align-items: center;
-
-  gap: 8px;
-
-  padding: 0 12px 0 5px;
-
-  border: 1px solid #e5e7eb;
-
-  border-radius: 12px;
-
-  background: #f8fafc;
-
-  cursor: pointer;
-
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    transform 0.15s ease;
-}
-
-.lightswind-nav .relative > button:hover {
-  background: #fffbeb;
-
-  border-color: #fcd34d;
-
-  box-shadow:
-    0 4px 12px rgba(245, 158, 11, 0.08);
-}
-
-.lightswind-nav .relative > button:active {
-  transform: scale(0.95);
-}
-
-/* ==========================================================
-   AVATAR
-========================================================== */
-
-.lightswind-nav .relative > button > div {
-  width: 29px;
-  height: 29px;
-
-  flex: 0 0 29px;
-
-  border-radius: 9px;
+/* ADMIN BADGE */
+.lightswind-nav .bg-slate-50 {
+  position: relative;
 
   display: flex;
   align-items: center;
   justify-content: center;
 
-  background: linear-gradient(
-    135deg,
-    #f59e0b,
-    #b45309
-  );
+  min-width: 82px;
+  height: 36px;
 
-  color: #ffffff;
-
-  font-size: 12px;
-  font-weight: 800;
-
-  box-shadow:
-    0 3px 8px rgba(180, 83, 9, 0.18);
-}
-
-/* ==========================================================
-   USERNAME
-========================================================== */
-
-.lightswind-nav .relative > button > span {
-  color: #374151;
-
-  font-size: 13px;
-  font-weight: 800;
-
-  white-space: nowrap;
-}
-
-/* ==========================================================
-   DROPDOWN CONTAINER
-========================================================== */
-
-.lightswind-dropdown,
-.profile-dropdown {
-  position: absolute;
-
-  right: 0;
-
-  margin-top: 8px;
-
-  background: #ffffff;
-
-  border: 1px solid #e5e7eb;
-
-  border-radius: 16px;
-
-  box-shadow:
-    0 12px 35px rgba(0, 0, 0, 0.12);
-
-  padding: 6px;
-
-  z-index: 200;
-
-  animation: navbar-dropdown-in 0.18s ease;
-}
-
-/* ==========================================================
-   LANGUAGE DROPDOWN
-========================================================== */
-
-.lightswind-dropdown {
-  width: 145px;
-}
-
-/* ==========================================================
-   LANGUAGE ITEMS
-========================================================== */
-
-.lightswind-dropdown button {
-  width: 100%;
-
-  display: block;
-
-  padding: 9px 11px;
-
-  border: 0;
-
-  border-radius: 10px;
-
-  background: transparent;
-
-  color: #475569;
-
-  font-size: 12px;
-  font-weight: 700;
-
-  text-align: left;
-
-  cursor: pointer;
-
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
-}
-
-.lightswind-dropdown button:hover {
-  background: #f8fafc;
-  color: #1f2937;
-}
-
-/* ==========================================================
-   PROFILE DROPDOWN
-========================================================== */
-
-.profile-dropdown {
-  width: 225px;
-}
-
-/* ==========================================================
-   PROFILE INFO
-========================================================== */
-
-.profile-dropdown > div:first-child {
-  padding: 12px;
-
-  margin-bottom: 6px;
-
-  border-radius: 12px;
-
-  background: linear-gradient(
-    135deg,
-    #fffbeb,
-    #fff7ed
-  );
-
-  border: 1px solid #fef3c7;
-}
-
-/* ==========================================================
-   PROFILE LOGOUT
-========================================================== */
-
-.profile-dropdown > button {
-  width: 100%;
-
-  min-height: 40px;
-
-  display: flex;
-
-  align-items: center;
-  justify-content: space-between;
-
-  padding: 0 13px;
-
-  border: 0;
+  padding: 0 15px;
 
   border-radius: 11px;
 
-  background: #fef2f2;
+  background: linear-gradient(
+    135deg,
+    #ffffff,
+    #f8fafc
+  );
 
-  color: #dc2626;
+  border: 1px solid #e2e8f0;
+
+  color: #334155;
 
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
 
-  cursor: pointer;
+  box-shadow:
+    0 3px 8px rgba(15, 23, 42, 0.07);
 
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease,
-    transform 0.15s ease;
+  transition: all 0.2s ease;
 }
 
-.profile-dropdown > button:hover {
-  background: #dc2626;
-  color: #ffffff;
+/* Admin hover */
+.lightswind-nav .bg-slate-50:hover {
+  background: #f8fafc;
+
+  border-color: #cbd5e1;
+
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 5px 12px rgba(15, 23, 42, 0.10);
 }
 
-.profile-dropdown > button:active {
-  transform: scale(0.96);
+/* SYSTEM BADGE */
+.lightswind-nav .bg-amber-50 {
+  box-shadow:
+    0 2px 5px rgba(245, 158, 11, 0.08);
 }
 
-/* ==========================================================
-   DROPDOWN ANIMATION
-========================================================== */
-
-@keyframes navbar-dropdown-in {
-  from {
-    opacity: 0;
-    transform: translateY(-5px) scale(0.98);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-/* ==========================================================
-   MOBILE
-========================================================== */
-
-@media (max-width: 768px) {
+/* MOBILE */
+@media (max-width: 640px) {
   .lightswind-nav {
-    height: 60px;
-
+    min-height: 58px;
     padding: 0 14px;
-
-    box-shadow:
-      0 2px 10px rgba(0, 0, 0, 0.05);
   }
 
   .brand-logo-box {
     width: 38px;
     height: 38px;
-
-    flex-basis: 38px;
-
-    border-radius: 12px;
+    border-radius: 11px;
   }
 
   .lightswind-nav h1 {
     font-size: 15px;
   }
 
-  .lightswind-nav h1 + span {
-    font-size: 8px;
-    padding: 3px 5px;
-  }
-
-  .lightswind-nav > div:last-child {
-    gap: 6px;
-  }
-
-  .btn-tactile {
-    width: 40px;
-    height: 38px;
-
-    padding: 0;
-
-    border-radius: 11px;
-  }
-
-  .nav-divider {
-    height: 21px;
-  }
-
-  .lightswind-nav .relative > button {
-    width: 40px;
-    height: 38px;
-
-    padding: 0;
-
-    justify-content: center;
-
-    border-radius: 11px;
-  }
-
-  .lightswind-nav .relative > button > div {
-    width: 28px;
-    height: 28px;
-  }
-
-  .lightswind-dropdown {
-    width: 135px;
-    margin-top: 7px;
-  }
-
-  .profile-dropdown {
-    width: 210px;
-    margin-top: 7px;
-  }
-}
-
-/* ==========================================================
-   SMALL MOBILE
-========================================================== */
-
-@media (max-width: 380px) {
-  .lightswind-nav {
-    padding: 0 10px;
-  }
-
-  .lightswind-nav h1 {
-    max-width: 120px;
-
-    overflow: hidden;
-
-    text-overflow: ellipsis;
-  }
-
-  .lightswind-nav h1 + span {
-    display: none;
-  }
-
-  .brand-logo-box {
-    width: 36px;
-    height: 36px;
-
-    flex-basis: 36px;
-  }
-
-  .btn-tactile,
-  .lightswind-nav .relative > button {
-    width: 36px;
-    height: 36px;
-  }
-}
-
-/* ==========================================================
-   LARGE DESKTOP
-========================================================== */
-
-@media (min-width: 1200px) {
-  .lightswind-nav {
-    padding-left: 28px;
-    padding-right: 28px;
+  .lightswind-nav .bg-slate-50 {
+    min-width: 70px;
+    height: 33px;
+    padding: 0 11px;
+    font-size: 12px;
   }
 }
