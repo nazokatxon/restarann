@@ -1,4 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   collection,
@@ -19,9 +23,14 @@ import { toast } from "react-toastify";
 
 import { useNavigate } from "react-router-dom";
 
+
 const KitchenQueue = () => {
   const navigate = useNavigate();
   const auth = getAuth();
+
+  // =========================================================
+  // STATE
+  // =========================================================
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,173 +39,45 @@ const KitchenQueue = () => {
     localStorage.getItem("appLang") || "uz"
   );
 
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] =
+    useState(false);
 
-  // Audio
+  const [audioEnabled, setAudioEnabled] =
+    useState(false);
+
+
+  // =========================================================
+  // REFS
+  // =========================================================
+
   const audioCtxRef = useRef(null);
 
-  // Oldingi buyurtmalar
-  const previousOrderIdsRef = useRef([]);
+  const audioEnabledRef = useRef(false);
 
-  // Oldingi item holatlari
-  const previousItemStatesRef = useRef({});
+  const previousOrdersRef = useRef(new Map());
 
-  const isInitialLoad = useRef(true);
+  const previousItemsRef = useRef(new Map());
 
-  // =========================================================
-  // 🔊 AUDIO
-  // =========================================================
+  const isInitialLoadRef = useRef(true);
 
-  const getAudioContext = () => {
-    try {
-      if (!audioCtxRef.current) {
-        const AudioCtx =
-          window.AudioContext ||
-          window.webkitAudioContext;
+  const notificationQueueRef = useRef([]);
 
-        if (!AudioCtx) return null;
+  const notificationPlayingRef = useRef(false);
 
-        audioCtxRef.current = new AudioCtx();
-      }
+  const languageRef = useRef(language);
 
-      return audioCtxRef.current;
-    } catch (error) {
-      console.error("Audio context error:", error);
-      return null;
-    }
-  };
-
-  const playKitchenSound = () => {
-    try {
-      const ctx = getAudioContext();
-
-      if (!ctx) return;
-
-      if (ctx.state === "suspended") {
-        ctx.resume().catch(() => {});
-      }
-
-      const now = ctx.currentTime;
-
-      const osc1 = ctx.createOscillator();
-      const gain1 = ctx.createGain();
-
-      osc1.type = "sine";
-      osc1.frequency.setValueAtTime(880, now);
-
-      gain1.gain.setValueAtTime(0.0001, now);
-      gain1.gain.exponentialRampToValueAtTime(
-        0.5,
-        now + 0.03
-      );
-
-      gain1.gain.exponentialRampToValueAtTime(
-        0.001,
-        now + 0.35
-      );
-
-      osc1.connect(gain1);
-      gain1.connect(ctx.destination);
-
-      osc1.start(now);
-      osc1.stop(now + 0.35);
-
-      setTimeout(() => {
-        try {
-          const ctx2 = getAudioContext();
-
-          if (!ctx2) return;
-
-          const now2 = ctx2.currentTime;
-
-          const osc2 = ctx2.createOscillator();
-          const gain2 = ctx2.createGain();
-
-          osc2.type = "sine";
-          osc2.frequency.setValueAtTime(
-            1046.5,
-            now2
-          );
-
-          gain2.gain.setValueAtTime(
-            0.0001,
-            now2
-          );
-
-          gain2.gain.exponentialRampToValueAtTime(
-            0.55,
-            now2 + 0.03
-          );
-
-          gain2.gain.exponentialRampToValueAtTime(
-            0.001,
-            now2 + 0.55
-          );
-
-          osc2.connect(gain2);
-          gain2.connect(ctx2.destination);
-
-          osc2.start(now2);
-          osc2.stop(now2 + 0.55);
-        } catch (error) {
-          console.error(error);
-        }
-      }, 180);
-    } catch (error) {
-      console.error("Audio error:", error);
-    }
-  };
 
   // =========================================================
-  // 🔓 BROWSER AUDIO UNLOCK
+  // LANGUAGE REF
   // =========================================================
 
   useEffect(() => {
-    const unlockAudio = () => {
-      try {
-        const ctx = getAudioContext();
+    languageRef.current = language;
+  }, [language]);
 
-        if (ctx && ctx.state === "suspended") {
-          ctx.resume().catch(() => {});
-        }
-      } catch {}
-    };
-
-    window.addEventListener(
-      "click",
-      unlockAudio
-    );
-
-    window.addEventListener(
-      "touchstart",
-      unlockAudio
-    );
-
-    window.addEventListener(
-      "keydown",
-      unlockAudio
-    );
-
-    return () => {
-      window.removeEventListener(
-        "click",
-        unlockAudio
-      );
-
-      window.removeEventListener(
-        "touchstart",
-        unlockAudio
-      );
-
-      window.removeEventListener(
-        "keydown",
-        unlockAudio
-      );
-    };
-  }, []);
 
   // =========================================================
-  // 🌍 TEXT
+  // TEXT
   // =========================================================
 
   const TEXT = {
@@ -241,6 +122,18 @@ const KitchenQueue = () => {
 
       allTaken:
         "Barcha taomlar olib ketildi ✅",
+
+      soundOn:
+        "Ovozni yoqish",
+
+      soundOnSuccess:
+        "🔊 Ovoz yoqildi!",
+
+      soundOff:
+        "Ovoz yoqilmagan",
+
+      soundRequired:
+        "Yangi buyurtma ovozini eshitish uchun ovozni yoqing.",
     },
 
     ru: {
@@ -285,240 +178,917 @@ const KitchenQueue = () => {
 
       allTaken:
         "Все блюда забраны ✅",
+
+      soundOn:
+        "Включить звук",
+
+      soundOnSuccess:
+        "🔊 Звук включён!",
+
+      soundOff:
+        "Звук не включён",
+
+      soundRequired:
+        "Включите звук, чтобы слышать новые заказы.",
     },
   };
 
-  const t = TEXT[language] || TEXT.uz;
 
-  const toggleLanguage = () => {
-    const nextLang =
-      language === "uz" ? "ru" : "uz";
+  const t =
+    TEXT[language] || TEXT.uz;
 
-    setLanguage(nextLang);
-
-    localStorage.setItem(
-      "appLang",
-      nextLang
-    );
-  };
 
   // =========================================================
-  // 🔥 FIRESTORE
+  // AUDIO CONTEXT
+  // =========================================================
+
+  const getAudioContext = () => {
+    try {
+      const AudioContext =
+        window.AudioContext ||
+        window.webkitAudioContext;
+
+      if (!AudioContext) {
+        console.error(
+          "Brauzer Web Audio API ni qo'llamaydi."
+        );
+
+        return null;
+      }
+
+      if (!audioCtxRef.current) {
+        audioCtxRef.current =
+          new AudioContext();
+      }
+
+      return audioCtxRef.current;
+    } catch (error) {
+      console.error(
+        "AudioContext yaratishda xatolik:",
+        error
+      );
+
+      return null;
+    }
+  };
+
+
+  // =========================================================
+  // 🔊 AUDIO UNLOCK
+  // =========================================================
+
+  const unlockAudio = async () => {
+    try {
+      const ctx =
+        getAudioContext();
+
+      if (!ctx) {
+        toast.error(
+          "Brauzer audio funksiyasini qo'llamaydi."
+        );
+
+        return false;
+      }
+
+      if (ctx.state === "suspended") {
+        await ctx.resume();
+      }
+
+      /*
+       * MUHIM:
+       * AudioContext ishlayotganini tekshirish uchun
+       * juda qisqa, deyarli eshitilmaydigan signal.
+       */
+
+      const oscillator =
+        ctx.createOscillator();
+
+      const gain =
+        ctx.createGain();
+
+      oscillator.type = "sine";
+
+      oscillator.frequency.setValueAtTime(
+        440,
+        ctx.currentTime
+      );
+
+      gain.gain.setValueAtTime(
+        0.00001,
+        ctx.currentTime
+      );
+
+      oscillator.connect(gain);
+
+      gain.connect(ctx.destination);
+
+      oscillator.start();
+
+      oscillator.stop(
+        ctx.currentTime + 0.01
+      );
+
+      audioEnabledRef.current =
+        true;
+
+      setAudioEnabled(true);
+
+      return true;
+    } catch (error) {
+      console.error(
+        "Audio unlock xatosi:",
+        error
+      );
+
+      return false;
+    }
+  };
+
+
+  // =========================================================
+  // 🔊 OVOZNI YOQISH BUTTON
+  // =========================================================
+
+  const enableAudio = async () => {
+    const success =
+      await unlockAudio();
+
+    if (success) {
+      toast.success(
+        t.soundOnSuccess,
+        {
+          autoClose: 2000,
+        }
+      );
+
+      /*
+       * Ovoz ishlayotganini tekshirish
+       */
+      await playNewOrderSound();
+    }
+  };
+
+
+  // =========================================================
+  // BROWSER INTERACTION
+  // =========================================================
+
+  useEffect(() => {
+    const handleInteraction =
+      async () => {
+        if (
+          !audioEnabledRef.current
+        ) {
+          await unlockAudio();
+        }
+      };
+
+    window.addEventListener(
+      "click",
+      handleInteraction
+    );
+
+    window.addEventListener(
+      "touchstart",
+      handleInteraction
+    );
+
+    window.addEventListener(
+      "keydown",
+      handleInteraction
+    );
+
+    return () => {
+      window.removeEventListener(
+        "click",
+        handleInteraction
+      );
+
+      window.removeEventListener(
+        "touchstart",
+        handleInteraction
+      );
+
+      window.removeEventListener(
+        "keydown",
+        handleInteraction
+      );
+    };
+  }, []);
+
+
+  // =========================================================
+  // 🔊 NEW ORDER SOUND
+  // =========================================================
+
+  const playNewOrderSound =
+    async () => {
+      try {
+        const ctx =
+          getAudioContext();
+
+        if (!ctx) return;
+
+        if (ctx.state === "suspended") {
+          await ctx.resume();
+        }
+
+        const start =
+          ctx.currentTime;
+
+        /*
+         * 1-signal
+         */
+        const beep = (
+          delay,
+          frequency,
+          duration,
+          volume = 0.7
+        ) => {
+          const oscillator =
+            ctx.createOscillator();
+
+          const gain =
+            ctx.createGain();
+
+          oscillator.type =
+            "sine";
+
+          oscillator.frequency.setValueAtTime(
+            frequency,
+            start + delay
+          );
+
+          gain.gain.setValueAtTime(
+            0.0001,
+            start + delay
+          );
+
+          gain.gain.exponentialRampToValueAtTime(
+            volume,
+            start + delay + 0.03
+          );
+
+          gain.gain.exponentialRampToValueAtTime(
+            0.0001,
+            start +
+              delay +
+              duration
+          );
+
+          oscillator.connect(gain);
+
+          gain.connect(
+            ctx.destination
+          );
+
+          oscillator.start(
+            start + delay
+          );
+
+          oscillator.stop(
+            start +
+              delay +
+              duration +
+              0.05
+          );
+        };
+
+
+        /*
+         * Kuchliroq 3 signal
+         */
+
+        beep(
+          0,
+          880,
+          0.3,
+          0.75
+        );
+
+        beep(
+          0.35,
+          1100,
+          0.3,
+          0.8
+        );
+
+        beep(
+          0.7,
+          880,
+          0.45,
+          0.75
+        );
+
+      } catch (error) {
+        console.error(
+          "New order audio error:",
+          error
+        );
+      }
+    };
+
+
+  // =========================================================
+  // 🔔 READY SOUND
+  // =========================================================
+
+  const playReadySound =
+    async () => {
+      try {
+        const ctx =
+          getAudioContext();
+
+        if (!ctx) return;
+
+        if (ctx.state === "suspended") {
+          await ctx.resume();
+        }
+
+        const start =
+          ctx.currentTime;
+
+        const beep = (
+          delay,
+          frequency,
+          duration
+        ) => {
+          const oscillator =
+            ctx.createOscillator();
+
+          const gain =
+            ctx.createGain();
+
+          oscillator.type =
+            "triangle";
+
+          oscillator.frequency.setValueAtTime(
+            frequency,
+            start + delay
+          );
+
+          gain.gain.setValueAtTime(
+            0.0001,
+            start + delay
+          );
+
+          gain.gain.exponentialRampToValueAtTime(
+            0.6,
+            start +
+              delay +
+              0.03
+          );
+
+          gain.gain.exponentialRampToValueAtTime(
+            0.0001,
+            start +
+              delay +
+              duration
+          );
+
+          oscillator.connect(gain);
+
+          gain.connect(
+            ctx.destination
+          );
+
+          oscillator.start(
+            start + delay
+          );
+
+          oscillator.stop(
+            start +
+              delay +
+              duration +
+              0.05
+          );
+        };
+
+
+        beep(
+          0,
+          660,
+          0.25
+        );
+
+        beep(
+          0.3,
+          880,
+          0.25
+        );
+
+        beep(
+          0.6,
+          1100,
+          0.35
+        );
+
+      } catch (error) {
+        console.error(
+          "Ready audio error:",
+          error
+        );
+      }
+    };
+
+
+  // =========================================================
+  // 🔔 NOTIFICATION QUEUE
+  // =========================================================
+
+  const showNextNotification =
+    async () => {
+      if (
+        notificationPlayingRef.current
+      ) {
+        return;
+      }
+
+      if (
+        notificationQueueRef.current
+          .length === 0
+      ) {
+        return;
+      }
+
+      notificationPlayingRef.current =
+        true;
+
+      const notification =
+        notificationQueueRef.current.shift();
+
+      try {
+        if (
+          audioEnabledRef.current
+        ) {
+          await playNewOrderSound();
+        }
+
+        toast.info(
+          `🔔 Stol №${notification.tableNumber}: ${notification.message}`,
+          {
+            position:
+              "top-center",
+
+            autoClose: 4000,
+
+            toastId:
+              notification.id,
+          }
+        );
+      } catch (error) {
+        console.error(
+          error
+        );
+      }
+
+      setTimeout(() => {
+        notificationPlayingRef.current =
+          false;
+
+        showNextNotification();
+      }, 1800);
+    };
+
+
+  // =========================================================
+  // 🔥 FIRESTORE LISTENER
   // =========================================================
 
   useEffect(() => {
     setLoading(true);
 
-    const ordersRef = collection(
-      db,
-      "orders"
-    );
+    const ordersRef =
+      collection(
+        db,
+        "orders"
+      );
 
-    const unsubscribe = onSnapshot(
-      ordersRef,
-      (snapshot) => {
-        try {
-          const allOrders =
-            snapshot.docs.map((item) => ({
-              id: item.id,
-              ...item.data(),
-            }));
-
-          // =====================================================
-          // FAQAT OSHXONADA HALI OLIB KETILMAGAN TAOMLAR
-          // =====================================================
-
-          const kitchenOrders =
-            allOrders.filter((order) => {
-              const rawItems =
-                Array.isArray(
-                  order.kitchenItems
-                )
-                  ? order.kitchenItems
-                  : Array.isArray(
-                      order.items
-                    )
-                  ? order.items
-                  : Array.isArray(
-                      order.products
-                    )
-                  ? order.products
-                  : [];
-
-              if (!rawItems.length) {
-                return false;
-              }
-
-              // Faqat waiterTaken=false bo'lgan taomlar
-              return rawItems.some(
-                (item) =>
-                  item.waiterTaken !== true
+    const unsubscribe =
+      onSnapshot(
+        ordersRef,
+        (snapshot) => {
+          try {
+            const allOrders =
+              snapshot.docs.map(
+                (item) => ({
+                  id: item.id,
+                  ...item.data(),
+                })
               );
-            });
 
-          // =====================================================
-          // SORT
-          // =====================================================
 
-          const getTime = (order) => {
-            if (
-              order.createdAt?.seconds
-            ) {
-              return (
-                order.createdAt.seconds *
-                1000
+            // =================================================
+            // ACTIVE KITCHEN ORDERS
+            // =================================================
+
+            const kitchenOrders =
+              allOrders.filter(
+                (order) => {
+                  const rawItems =
+                    Array.isArray(
+                      order.kitchenItems
+                    )
+                      ? order.kitchenItems
+                      : Array.isArray(
+                          order.items
+                        )
+                      ? order.items
+                      : Array.isArray(
+                          order.products
+                        )
+                      ? order.products
+                      : [];
+
+
+                  if (
+                    rawItems.length ===
+                    0
+                  ) {
+                    return false;
+                  }
+
+
+                  /*
+                   * Oshxonada hali qolgan
+                   * taom bo'lsa order ko'rinadi.
+                   */
+
+                  return rawItems.some(
+                    (item) =>
+                      item.waiterTaken !==
+                      true
+                  );
+                }
               );
-            }
 
-            if (
-              order.createdAt?.toDate
-            ) {
-              return order.createdAt
-                .toDate()
-                .getTime();
-            }
 
-            if (
-              typeof order.createdAt ===
-              "number"
-            ) {
-              return order.createdAt;
-            }
+            // =================================================
+            // SORT
+            // =================================================
 
-            return Date.now();
-          };
+            const getTime =
+              (order) => {
+                if (
+                  order.createdAt
+                    ?.seconds
+                ) {
+                  return (
+                    order.createdAt
+                      .seconds * 1000
+                  );
+                }
 
-          kitchenOrders.sort(
-            (a, b) =>
-              getTime(a) - getTime(b)
-          );
+                if (
+                  order.createdAt?.toDate
+                ) {
+                  return order.createdAt
+                    .toDate()
+                    .getTime();
+                }
 
-          // =====================================================
-          // 🔊 YANGI BUYURTMA ANIQLASH
-          // =====================================================
+                if (
+                  typeof order.createdAt ===
+                  "number"
+                ) {
+                  return order.createdAt;
+                }
 
-          const currentOrderIds =
-            kitchenOrders.map(
-              (order) => order.id
+                return Date.now();
+              };
+
+
+            kitchenOrders.sort(
+              (a, b) =>
+                getTime(a) -
+                getTime(b)
             );
 
-          if (
-            isInitialLoad.current
-          ) {
-            isInitialLoad.current = false;
-          } else {
-            const hasNewOrder =
-              currentOrderIds.some(
-                (id) =>
-                  !previousOrderIdsRef.current.includes(
-                    id
+
+            // =================================================
+            // 🔔 NEW ORDER DETECTION
+            // =================================================
+
+            const currentOrdersMap =
+              new Map();
+
+            kitchenOrders.forEach(
+              (order) => {
+                currentOrdersMap.set(
+                  order.id,
+                  order
+                );
+              }
+            );
+
+
+            /*
+             * Birinchi Firestore load'da
+             * ovoz CHIQARMAYDI.
+             */
+
+            if (
+              isInitialLoadRef.current
+            ) {
+              kitchenOrders.forEach(
+                (order) => {
+                  previousOrdersRef.current.set(
+                    order.id,
+                    order
+                  );
+                }
+              );
+
+              isInitialLoadRef.current =
+                false;
+            } else {
+
+              kitchenOrders.forEach(
+                (order) => {
+                  const oldOrder =
+                    previousOrdersRef.current.get(
+                      order.id
+                    );
+
+
+                  /*
+                   * 1. Yangi order
+                   */
+
+                  if (!oldOrder) {
+                    const tableNumber =
+                      order.tableNumber ??
+                      order.table ??
+                      order.tableNo ??
+                      "—";
+
+
+                    notificationQueueRef.current.push(
+                      {
+                        id:
+                          `new-order-${order.id}`,
+
+                        tableNumber,
+
+                        message:
+                          languageRef.current ===
+                          "ru"
+                            ? "Новый заказ!"
+                            : "Yangi buyurtma tushdi!",
+                      }
+                    );
+
+                    showNextNotification();
+                  }
+
+
+                  /*
+                   * 2. Yangi item qo'shilgan
+                   *
+                   * Agar mavjud orderga
+                   * ofitsiant yana taom qo'shsa
+                   * ham signal beradi.
+                   */
+
+                  if (oldOrder) {
+                    const oldItems =
+                      Array.isArray(
+                        oldOrder.kitchenItems
+                      )
+                        ? oldOrder.kitchenItems
+                        : Array.isArray(
+                            oldOrder.items
+                          )
+                        ? oldOrder.items
+                        : Array.isArray(
+                            oldOrder.products
+                          )
+                        ? oldOrder.products
+                        : [];
+
+
+                    const newItems =
+                      Array.isArray(
+                        order.kitchenItems
+                      )
+                        ? order.kitchenItems
+                        : Array.isArray(
+                            order.items
+                          )
+                        ? order.items
+                        : Array.isArray(
+                            order.products
+                          )
+                        ? order.products
+                        : [];
+
+
+                    if (
+                      newItems.length >
+                      oldItems.length
+                    ) {
+                      const tableNumber =
+                        order.tableNumber ??
+                        order.table ??
+                        order.tableNo ??
+                        "—";
+
+
+                      notificationQueueRef.current.push(
+                        {
+                          id:
+                            `new-item-${order.id}-${newItems.length}-${Date.now()}`,
+
+                          tableNumber,
+
+                          message:
+                            languageRef.current ===
+                            "ru"
+                              ? "Добавлено новое блюдо!"
+                              : "Yangi taom qo'shildi!",
+                        }
+                      );
+
+                      showNextNotification();
+                    }
+                  }
+
+
+                  previousOrdersRef.current.set(
+                    order.id,
+                    order
+                  );
+                }
+              );
+            }
+
+
+            // =================================================
+            // 🔔 READY ITEM DETECTION
+            // =================================================
+
+            const currentItemsMap =
+              new Map();
+
+
+            kitchenOrders.forEach(
+              (order) => {
+                const rawItems =
+                  Array.isArray(
+                    order.kitchenItems
                   )
-              );
+                    ? order.kitchenItems
+                    : Array.isArray(
+                        order.items
+                      )
+                    ? order.items
+                    : Array.isArray(
+                        order.products
+                      )
+                    ? order.products
+                    : [];
 
-            if (hasNewOrder) {
-              toast.info(
-                `🔔 ${t.newOrder}`,
-                {
-                  autoClose: 3000,
-                }
-              );
 
-              // 🔊 avtomatik ovoz
-              playKitchenSound();
-            }
+                rawItems.forEach(
+                  (
+                    item,
+                    index
+                  ) => {
+                    const key =
+                      `${order.id}_${index}`;
+
+
+                    currentItemsMap.set(
+                      key,
+                      item.readyForWaiter ===
+                        true
+                    );
+
+
+                    const oldReady =
+                      previousItemsRef.current.get(
+                        key
+                      ) === true;
+
+
+                    const newReady =
+                      item.readyForWaiter ===
+                      true;
+
+
+                    /*
+                     * Bu yerda ready sound
+                     * faqat yangi false -> true
+                     */
+
+                    if (
+                      !isInitialLoadRef.current &&
+                      !oldReady &&
+                      newReady
+                    ) {
+                      /*
+                       * Kitchen o'zi tayyor qilgan
+                       * item uchun ofitsiantga
+                       * signal.
+                       */
+
+                      if (
+                        audioEnabledRef.current
+                      ) {
+                        playReadySound();
+                      }
+
+
+                      toast.success(
+                        `✅ ${
+                          item.name ||
+                          item.title ||
+                          item.productName ||
+                          "Taom"
+                        } ${
+                          languageRef.current ===
+                          "ru"
+                            ? "готово!"
+                            : "tayyor!"
+                        }`,
+                        {
+                          autoClose: 2500,
+                        }
+                      );
+                    }
+                  }
+                );
+              }
+            );
+
+
+            previousItemsRef.current =
+              currentItemsMap;
+
+
+            // =================================================
+            // STATE
+            // =================================================
+
+            setOrders(
+              kitchenOrders
+            );
+
+            setLoading(false);
+
+          } catch (error) {
+            console.error(
+              "Firestore data error:",
+              error
+            );
+
+            setLoading(false);
+
+            toast.error(
+              "Buyurtmalarni yuklashda xatolik!"
+            );
           }
+        },
 
-          previousOrderIdsRef.current =
-            currentOrderIds;
-
-          // =====================================================
-          // 🔊 YANGI TAYYOR BO'LGAN TAOMNI ANIQLASH
-          // =====================================================
-
-          const newItemStates = {};
-
-          kitchenOrders.forEach(
-            (order) => {
-              const rawItems =
-                Array.isArray(
-                  order.kitchenItems
-                )
-                  ? order.kitchenItems
-                  : Array.isArray(
-                      order.items
-                    )
-                  ? order.items
-                  : Array.isArray(
-                      order.products
-                    )
-                  ? order.products
-                  : [];
-
-              rawItems.forEach(
-                (item, index) => {
-                  const key = `${order.id}_${index}`;
-
-                  newItemStates[key] =
-                    item.readyForWaiter ===
-                    true;
-                }
-              );
-            }
+        (error) => {
+          console.error(
+            "Firestore listener error:",
+            error
           );
 
-          // =====================================================
-          // STATE UPDATE
-          // =====================================================
-
-          previousItemStatesRef.current =
-            newItemStates;
-
-          setOrders(kitchenOrders);
-
-          setLoading(false);
-        } catch (error) {
-          console.error(
-            "Xatolik:",
-            error
+          toast.error(
+            "Buyurtmalarni kuzatishda xatolik: " +
+              error.message
           );
 
           setLoading(false);
         }
-      },
-      (error) => {
-        console.error(
-          "❌ Firestore xatosi:",
-          error
-        );
+      );
 
-        toast.error(
-          "Buyurtmalarni yuklashda xatolik: " +
-            error.message
-        );
-
-        setLoading(false);
-      }
-    );
 
     return () => {
       unsubscribe();
     };
+
   }, []);
 
+
   // =========================================================
-  // 🪑 STOLLAR BO'YICHA GURUHLASH
+  // GROUP TABLES
   // =========================================================
 
   const groupedTables =
     Object.values(
       orders.reduce(
         (acc, order) => {
-          const tableKey = String(
-            order.tableNumber ??
-              order.table ??
-              order.tableNo ??
-              "Noma'lum"
-          );
+          const tableKey =
+            String(
+              order.tableNumber ??
+                order.table ??
+                order.tableNo ??
+                "Noma'lum"
+            );
+
 
           if (!acc[tableKey]) {
             acc[tableKey] = {
@@ -532,9 +1102,13 @@ const KitchenQueue = () => {
             };
           }
 
-          acc[tableKey].ordersList.push(
+
+          acc[
+            tableKey
+          ].ordersList.push(
             order
           );
+
 
           return acc;
         },
@@ -546,19 +1120,9 @@ const KitchenQueue = () => {
         Number(b.tableNumber)
     );
 
+
   // =========================================================
-  // 🍽️ OSHPAZ TAOMNI TAYYOR QILADI
-  //
-  // 1. readyForWaiter = true
-  // 2. waiterTaken = false
-  //
-  // Taom OSHXONADA QOLADI.
-  //
-  // Ofitsiant "Yetkazildi" bosgandan keyin:
-  //
-  // waiterTaken = true
-  //
-  // Shundan keyin oshxonadan yo'qoladi.
+  // HANDLE ITEM READY
   // =========================================================
 
   const handleItemReady = async (
@@ -566,38 +1130,52 @@ const KitchenQueue = () => {
     itemIndex
   ) => {
     try {
-      let fieldName = "kitchenItems";
+      let fieldName =
+        "kitchenItems";
 
       let rawItems = [];
+
 
       if (
         Array.isArray(
           order.kitchenItems
         )
       ) {
-        fieldName = "kitchenItems";
+        fieldName =
+          "kitchenItems";
 
-        rawItems = order.kitchenItems;
+        rawItems =
+          order.kitchenItems;
       } else if (
-        Array.isArray(order.items)
+        Array.isArray(
+          order.items
+        )
       ) {
-        fieldName = "items";
+        fieldName =
+          "items";
 
-        rawItems = order.items;
+        rawItems =
+          order.items;
       } else if (
-        Array.isArray(order.products)
+        Array.isArray(
+          order.products
+        )
       ) {
-        fieldName = "products";
+        fieldName =
+          "products";
 
-        rawItems = order.products;
+        rawItems =
+          order.products;
       }
 
-      const updatedItems = [
-        ...rawItems,
-      ];
+
+      const updatedItems =
+        [...rawItems];
+
 
       const item =
         updatedItems[itemIndex];
+
 
       if (!item) {
         toast.error(
@@ -607,12 +1185,10 @@ const KitchenQueue = () => {
         return;
       }
 
-      // =====================================================
-      // ALLAQACHON TAYYOR BO'LSA QAYTA BOSILMAYDI
-      // =====================================================
 
       if (
-        item.readyForWaiter === true
+        item.readyForWaiter ===
+        true
       ) {
         toast.info(
           "Bu taom allaqachon tayyor."
@@ -621,30 +1197,32 @@ const KitchenQueue = () => {
         return;
       }
 
+
       // =====================================================
-      // 🔥 FAQAT BOSILGAN TAOM TAYYOR
+      // READY
       // =====================================================
 
-      updatedItems[itemIndex] = {
+      updatedItems[
+        itemIndex
+      ] = {
         ...item,
 
-        // Oshpaz tayyor qildi
         readyForWaiter: true,
 
-        // Ofitsiant hali olib ketmadi
         waiterTaken: false,
 
-        // Tayyor bo'lgan vaqt
         readyAt:
           new Date().toISOString(),
       };
 
+
       // =====================================================
-      // BARCHA TAOMLAR TAYYORMI?
+      // ALL READY
       // =====================================================
 
       const allReady =
-        updatedItems.length > 0 &&
+        updatedItems.length >
+          0 &&
         updatedItems.every(
           (currentItem) =>
             currentItem.readyForWaiter ===
@@ -653,8 +1231,9 @@ const KitchenQueue = () => {
               true
         );
 
+
       // =====================================================
-      // FIRESTORE UPDATE
+      // FIRESTORE
       // =====================================================
 
       await updateDoc(
@@ -667,25 +1246,32 @@ const KitchenQueue = () => {
           [fieldName]:
             updatedItems,
 
-          // Barcha taom tayyor bo'lsa ready
-          kitchenStatus: allReady
-            ? "ready"
-            : "preparing",
+          kitchenStatus:
+            allReady
+              ? "ready"
+              : "preparing",
 
-          status: allReady
-            ? "ready"
-            : "preparing",
+          status:
+            allReady
+              ? "ready"
+              : "preparing",
 
           updatedAt:
             serverTimestamp(),
         }
       );
 
+
       // =====================================================
-      // 🔊 OSHPAZ TAYYOR QILGANDA SIGNAL
+      // LOCAL SOUND
       // =====================================================
 
-      playKitchenSound();
+      if (
+        audioEnabledRef.current
+      ) {
+        await playReadySound();
+      }
+
 
       toast.success(
         `✅ ${
@@ -693,14 +1279,17 @@ const KitchenQueue = () => {
           item.title ||
           item.productName ||
           "Taom"
-        } ${t.readyMessage}`,
+        } ${
+          t.readyMessage
+        }`,
         {
-          autoClose: 2000,
+          autoClose: 2500,
         }
       );
+
     } catch (error) {
       console.error(
-        "❌ Taomni tayyor qilishda xatolik:",
+        "Taomni tayyor qilishda xatolik:",
         error
       );
 
@@ -710,76 +1299,100 @@ const KitchenQueue = () => {
     }
   };
 
-  // =========================================================
-  // 🚪 LOGOUT
-  // =========================================================
-
-  const confirmLogout = async () => {
-    try {
-      await signOut(auth);
-
-      navigate("/login");
-    } catch (error) {
-      toast.error(
-        "Chiqishda xatolik!"
-      );
-    }
-  };
 
   // =========================================================
-  // ⏰ TIME
+  // LOGOUT
   // =========================================================
 
-  const formatTime = (createdAt) => {
-    try {
-      if (
-        createdAt?.toDate
-      ) {
-        return createdAt
-          .toDate()
-          .toLocaleTimeString(
+  const confirmLogout =
+    async () => {
+      try {
+        await signOut(auth);
+
+        navigate(
+          "/login"
+        );
+      } catch (error) {
+        console.error(
+          error
+        );
+
+        toast.error(
+          "Chiqishda xatolik!"
+        );
+      }
+    };
+
+
+  // =========================================================
+  // TIME
+  // =========================================================
+
+  const formatTime =
+    (createdAt) => {
+      try {
+        if (
+          createdAt?.toDate
+        ) {
+          return createdAt
+            .toDate()
+            .toLocaleTimeString(
+              "uz-UZ",
+              {
+                hour:
+                  "2-digit",
+
+                minute:
+                  "2-digit",
+              }
+            );
+        }
+
+
+        if (
+          createdAt?.seconds
+        ) {
+          return new Date(
+            createdAt.seconds *
+              1000
+          ).toLocaleTimeString(
             "uz-UZ",
             {
-              hour: "2-digit",
-              minute: "2-digit",
+              hour:
+                "2-digit",
+
+              minute:
+                "2-digit",
             }
           );
-      }
+        }
 
-      if (
-        createdAt?.seconds
-      ) {
-        return new Date(
-          createdAt.seconds * 1000
-        ).toLocaleTimeString(
-          "uz-UZ",
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-          }
-        );
-      }
 
-      if (
-        typeof createdAt ===
-        "number"
-      ) {
-        return new Date(
-          createdAt
-        ).toLocaleTimeString(
-          "uz-UZ",
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-          }
-        );
-      }
+        if (
+          typeof createdAt ===
+          "number"
+        ) {
+          return new Date(
+            createdAt
+          ).toLocaleTimeString(
+            "uz-UZ",
+            {
+              hour:
+                "2-digit",
 
-      return "";
-    } catch {
-      return "";
-    }
-  };
+              minute:
+                "2-digit",
+            }
+          );
+        }
+
+
+        return "";
+      } catch {
+        return "";
+      }
+    };
+
 
   const getElapsedTime =
     (createdAt) => {
@@ -787,7 +1400,9 @@ const KitchenQueue = () => {
         return `0 ${t.minAgo}`;
       }
 
+
       let timeMs = 0;
+
 
       if (
         createdAt.toDate
@@ -806,10 +1421,12 @@ const KitchenQueue = () => {
         typeof createdAt ===
         "number"
       ) {
-        timeMs = createdAt;
+        timeMs =
+          createdAt;
       } else {
         return `0 ${t.minAgo}`;
       }
+
 
       const diffMinutes =
         Math.floor(
@@ -818,6 +1435,7 @@ const KitchenQueue = () => {
             (1000 * 60)
         );
 
+
       return `${
         diffMinutes < 0
           ? 0
@@ -825,12 +1443,43 @@ const KitchenQueue = () => {
       } ${t.minAgo}`;
     };
 
+
+  // =========================================================
+  // USER
+  // =========================================================
+
   const currentUser =
     auth.currentUser
       ?.displayName ||
     auth.currentUser
-      ?.email?.split("@")[0] ||
+      ?.email
+      ?.split("@")[0] ||
     "oshpaz";
+
+
+  // =========================================================
+  // LANGUAGE
+  // =========================================================
+
+  const toggleLanguage =
+    () => {
+      const nextLang =
+        language === "uz"
+          ? "ru"
+          : "uz";
+
+
+      setLanguage(
+        nextLang
+      );
+
+
+      localStorage.setItem(
+        "appLang",
+        nextLang
+      );
+    };
+
 
   // =========================================================
   // UI
@@ -839,97 +1488,229 @@ const KitchenQueue = () => {
   return (
     <div
       style={{
-        minHeight: "100vh",
-        background: "#f7f5ed",
-        padding: "20px",
+        minHeight:
+          "100vh",
+
+        background:
+          "#f7f5ed",
+
+        padding:
+          "20px",
+
         fontFamily:
           "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-        color: "#0f172a",
+
+        color:
+          "#0f172a",
       }}
     >
+
       <div
         style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
+          maxWidth:
+            "1200px",
+
+          margin:
+            "0 auto",
         }}
       >
 
-        {/* NAVBAR */}
+        {/* ===================================================
+            NAVBAR
+        =================================================== */}
 
         <div
           style={{
-            background: "#ffffff",
-            borderRadius: "16px",
-            padding: "12px 20px",
-            display: "flex",
-            alignItems: "center",
+            background:
+              "#ffffff",
+
+            borderRadius:
+              "16px",
+
+            padding:
+              "12px 20px",
+
+            display:
+              "flex",
+
+            alignItems:
+              "center",
+
             justifyContent:
               "space-between",
+
             boxShadow:
               "0 2px 8px rgba(0,0,0,0.03)",
-            marginBottom: "24px",
+
+            marginBottom:
+              "24px",
           }}
         >
+
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
+              display:
+                "flex",
+
+              alignItems:
+                "center",
+
+              gap:
+                "12px",
             }}
           >
+
             <div
               style={{
-                width: "42px",
-                height: "42px",
-                background: "#f59e0b",
-                borderRadius: "10px",
-                display: "flex",
-                alignItems: "center",
+                width:
+                  "42px",
+
+                height:
+                  "42px",
+
+                background:
+                  "#f59e0b",
+
+                borderRadius:
+                  "10px",
+
+                display:
+                  "flex",
+
+                alignItems:
+                  "center",
+
                 justifyContent:
                   "center",
-                color: "#fff",
-                fontWeight: "bold",
-                fontSize: "20px",
+
+                color:
+                  "#fff",
+
+                fontWeight:
+                  "bold",
+
+                fontSize:
+                  "20px",
               }}
             >
-              🏢
+              🍳
             </div>
+
 
             <span
               style={{
-                fontSize: "18px",
-                fontWeight: "800",
+                fontSize:
+                  "18px",
+
+                fontWeight:
+                  "800",
               }}
             >
               {t.cafeName}
             </span>
+
           </div>
+
 
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
+              display:
+                "flex",
+
+              alignItems:
+                "center",
+
+              gap:
+                "10px",
+
+              flexWrap:
+                "wrap",
+
+              justifyContent:
+                "flex-end",
             }}
           >
 
-            {/* OVOZ BUTTONI OLIB TASHLANDI */}
+            {/* =================================================
+                AUDIO BUTTON
+            ================================================= */}
 
             <button
-              onClick={toggleLanguage}
+              onClick={
+                enableAudio
+              }
               style={{
-                background: "#f1f5f9",
-                border: "none",
-                borderRadius: "20px",
+                background:
+                  audioEnabled
+                    ? "#dcfce7"
+                    : "#fee2e2",
+
+                color:
+                  audioEnabled
+                    ? "#15803d"
+                    : "#dc2626",
+
+                border:
+                  audioEnabled
+                    ? "1px solid #86efac"
+                    : "1px solid #fca5a5",
+
+                borderRadius:
+                  "20px",
+
+                padding:
+                  "8px 14px",
+
+                fontSize:
+                  "13px",
+
+                fontWeight:
+                  "800",
+
+                cursor:
+                  "pointer",
+              }}
+            >
+              {audioEnabled
+                ? "🔊 Ovoz yoqilgan"
+                : `🔇 ${t.soundOn}`}
+            </button>
+
+
+            {/* LANGUAGE */}
+
+            <button
+              onClick={
+                toggleLanguage
+              }
+              style={{
+                background:
+                  "#f1f5f9",
+
+                border:
+                  "none",
+
+                borderRadius:
+                  "20px",
+
                 padding:
                   "8px 16px",
-                fontSize: "14px",
-                fontWeight: "600",
-                cursor: "pointer",
+
+                fontSize:
+                  "14px",
+
+                fontWeight:
+                  "600",
+
+                cursor:
+                  "pointer",
               }}
             >
               🌐 {t.langName}
             </button>
+
+
+            {/* USER */}
 
             <button
               onClick={() =>
@@ -938,121 +1719,292 @@ const KitchenQueue = () => {
                 )
               }
               style={{
-                background: "#f1f5f9",
-                border: "none",
-                borderRadius: "20px",
+                background:
+                  "#f1f5f9",
+
+                border:
+                  "none",
+
+                borderRadius:
+                  "20px",
+
                 padding:
                   "8px 16px",
-                fontSize: "14px",
-                fontWeight: "600",
-                cursor: "pointer",
+
+                fontSize:
+                  "14px",
+
+                fontWeight:
+                  "600",
+
+                cursor:
+                  "pointer",
               }}
             >
               🍳 {currentUser}
             </button>
+
           </div>
         </div>
 
-        {/* HEADER */}
+
+        {/* ===================================================
+            AUDIO WARNING
+        =================================================== */}
+
+        {!audioEnabled && (
+          <div
+            style={{
+              background:
+                "#fff7ed",
+
+              border:
+                "1px solid #fdba74",
+
+              color:
+                "#9a3412",
+
+              borderRadius:
+                "14px",
+
+              padding:
+                "12px 16px",
+
+              marginBottom:
+                "20px",
+
+              display:
+                "flex",
+
+              alignItems:
+                "center",
+
+              justifyContent:
+                "space-between",
+
+              gap:
+                "12px",
+
+              flexWrap:
+                "wrap",
+            }}
+          >
+
+            <span
+              style={{
+                fontWeight:
+                  "700",
+
+                fontSize:
+                  "14px",
+              }}
+            >
+              🔇 {t.soundRequired}
+            </span>
+
+
+            <button
+              onClick={
+                enableAudio
+              }
+              style={{
+                background:
+                  "#ea580c",
+
+                color:
+                  "#fff",
+
+                border:
+                  "none",
+
+                borderRadius:
+                  "10px",
+
+                padding:
+                  "9px 16px",
+
+                fontWeight:
+                  "800",
+
+                cursor:
+                  "pointer",
+              }}
+            >
+              🔊 {t.soundOn}
+            </button>
+
+          </div>
+        )}
+
+
+        {/* ===================================================
+            HEADER
+        =================================================== */}
 
         <div
           style={{
-            background: "#ffffff",
-            borderRadius: "16px",
+            background:
+              "#ffffff",
+
+            borderRadius:
+              "16px",
+
             padding:
               "24px 32px",
-            display: "flex",
-            alignItems: "center",
+
+            display:
+              "flex",
+
+            alignItems:
+              "center",
+
             justifyContent:
               "space-between",
-            marginBottom: "24px",
+
+            marginBottom:
+              "24px",
+
+            gap:
+              "15px",
+
+            flexWrap:
+              "wrap",
           }}
         >
+
           <h1
             style={{
-              fontSize: "28px",
-              fontWeight: "800",
-              margin: 0,
+              fontSize:
+                "28px",
+
+              fontWeight:
+                "800",
+
+              margin:
+                0,
             }}
           >
             {t.queueTitle}
           </h1>
 
+
           <div
             style={{
-              background: "#e0f2fe",
-              color: "#0369a1",
+              background:
+                "#e0f2fe",
+
+              color:
+                "#0369a1",
+
               padding:
                 "10px 20px",
-              borderRadius: "12px",
-              fontWeight: "700",
+
+              borderRadius:
+                "12px",
+
+              fontWeight:
+                "700",
             }}
           >
             {groupedTables.length}{" "}
             {t.activeOrders}
           </div>
+
         </div>
 
-        {/* MAIN */}
+
+        {/* ===================================================
+            MAIN
+        =================================================== */}
 
         {loading ? (
+
           <div
             style={{
-              textAlign: "center",
-              padding: "60px",
-              fontSize: "18px",
+              textAlign:
+                "center",
+
+              padding:
+                "60px",
+
+              fontSize:
+                "18px",
             }}
           >
             ⏳ Yuklanmoqda...
           </div>
+
         ) : groupedTables.length ===
           0 ? (
+
           <div
             style={{
-              textAlign: "center",
+              textAlign:
+                "center",
+
               padding:
                 "60px 20px",
+
               background:
                 "#ffffff",
-              borderRadius: "16px",
+
+              borderRadius:
+                "16px",
             }}
           >
+
             <h3
               style={{
-                fontSize: "22px",
-                fontWeight: "800",
+                fontSize:
+                  "22px",
+
+                fontWeight:
+                  "800",
               }}
             >
               {t.empty}
             </h3>
 
+
             <p
               style={{
-                color: "#64748b",
+                color:
+                  "#64748b",
               }}
             >
               {t.emptyText}
             </p>
+
           </div>
+
         ) : (
+
           <div
             style={{
-              display: "flex",
+              display:
+                "flex",
+
               flexDirection:
                 "column",
-              gap: "20px",
+
+              gap:
+                "20px",
             }}
           >
+
             {groupedTables.map(
               (
                 group,
                 groupIndex
               ) => {
 
-                const allItems = [];
+                const allItems =
+                  [];
+
 
                 group.ordersList.forEach(
                   (order) => {
+
                     const rawItems =
                       Array.isArray(
                         order.kitchenItems
@@ -1068,11 +2020,13 @@ const KitchenQueue = () => {
                         ? order.products
                         : [];
 
+
                     rawItems.forEach(
                       (
                         item,
                         originalIndex
                       ) => {
+
                         allItems.push({
                           ...item,
 
@@ -1081,14 +2035,13 @@ const KitchenQueue = () => {
                           parentOrder:
                             order,
                         });
+
                       }
                     );
+
                   }
                 );
 
-                // =================================================
-                // FAQAT OFITSIANT OLIB KETMAGAN TAOMLAR
-                // =================================================
 
                 const visibleItems =
                   allItems.filter(
@@ -1097,7 +2050,9 @@ const KitchenQueue = () => {
                       true
                   );
 
+
                 return (
+
                   <div
                     key={
                       group.tableNumber
@@ -1135,8 +2090,15 @@ const KitchenQueue = () => {
 
                         marginBottom:
                           "18px",
+
+                        gap:
+                          "10px",
+
+                        flexWrap:
+                          "wrap",
                       }}
                     >
+
                       <div
                         style={{
                           display:
@@ -1145,9 +2107,14 @@ const KitchenQueue = () => {
                           alignItems:
                             "center",
 
-                          gap: "12px",
+                          gap:
+                            "12px",
+
+                          flexWrap:
+                            "wrap",
                         }}
                       >
+
                         <span
                           style={{
                             background:
@@ -1175,6 +2142,7 @@ const KitchenQueue = () => {
                           -CHI
                         </span>
 
+
                         <span
                           style={{
                             fontSize:
@@ -1184,12 +2152,14 @@ const KitchenQueue = () => {
                               "800",
                           }}
                         >
-                          Stol №
+                          Stol №{" "}
                           {
                             group.tableNumber
                           }
                         </span>
+
                       </div>
+
 
                       <div
                         style={{
@@ -1197,6 +2167,7 @@ const KitchenQueue = () => {
                             "right",
                         }}
                       >
+
                         <span
                           style={{
                             background:
@@ -1221,6 +2192,7 @@ const KitchenQueue = () => {
                           {t.preparing}
                         </span>
 
+
                         <div
                           style={{
                             fontSize:
@@ -1236,15 +2208,20 @@ const KitchenQueue = () => {
                           {formatTime(
                             group.createdAt
                           )}
+
                           {" • "}
+
                           {getElapsedTime(
                             group.createdAt
                           )}
                         </div>
+
                       </div>
+
                     </div>
 
-                    {/* TAOMLAR */}
+
+                    {/* ITEMS */}
 
                     <div
                       style={{
@@ -1254,11 +2231,14 @@ const KitchenQueue = () => {
                         flexDirection:
                           "column",
 
-                        gap: "8px",
+                        gap:
+                          "8px",
                       }}
                     >
+
                       {visibleItems.length ===
                       0 ? (
+
                         <div
                           style={{
                             padding:
@@ -1276,7 +2256,9 @@ const KitchenQueue = () => {
                         >
                           {t.allTaken}
                         </div>
+
                       ) : (
+
                         visibleItems.map(
                           (
                             item,
@@ -1287,7 +2269,9 @@ const KitchenQueue = () => {
                               item.readyForWaiter ===
                               true;
 
+
                             return (
+
                               <div
                                 key={`${item.parentOrder.id}-${item.originalIndex}-${idx}`}
                                 style={{
@@ -1315,10 +2299,17 @@ const KitchenQueue = () => {
 
                                   justifyContent:
                                     "space-between",
+
+                                  gap:
+                                    "15px",
+
+                                  flexWrap:
+                                    "wrap",
                                 }}
                               >
 
                                 <div>
+
                                   <div
                                     style={{
                                       fontWeight:
@@ -1328,13 +2319,17 @@ const KitchenQueue = () => {
                                         "16px",
                                     }}
                                   >
-                                    {item.name ||
+                                    {
+                                      item.name ||
                                       item.title ||
                                       item.productName ||
-                                      "Taom"}
+                                      "Taom"
+                                    }
                                   </div>
 
+
                                   {isReady && (
+
                                     <div
                                       style={{
                                         marginTop:
@@ -1353,8 +2348,11 @@ const KitchenQueue = () => {
                                       🔔 Ofitsiant
                                       kutmoqda
                                     </div>
+
                                   )}
+
                                 </div>
+
 
                                 <div
                                   style={{
@@ -1369,19 +2367,22 @@ const KitchenQueue = () => {
                                   }}
                                 >
 
-                                  {/* TAYYOR BUTTON */}
+                                  {/* READY */}
 
                                   <button
                                     type="button"
+
                                     disabled={
                                       isReady
                                     }
+
                                     onClick={() =>
                                       handleItemReady(
                                         item.parentOrder,
                                         item.originalIndex
                                       )
                                     }
+
                                     style={{
                                       background:
                                         isReady
@@ -1419,10 +2420,15 @@ const KitchenQueue = () => {
                                         "180px",
                                     }}
                                   >
+
                                     {isReady
                                       ? "✅ Tayyor — kutmoqda"
                                       : "👨‍🍳 Tayyor"}
+
                                   </button>
+
+
+                                  {/* QUANTITY */}
 
                                   <span
                                     style={{
@@ -1444,29 +2450,44 @@ const KitchenQueue = () => {
                                       item.count ||
                                       1}
                                   </span>
+
                                 </div>
+
                               </div>
+
                             );
+
                           }
                         )
+
                       )}
+
                     </div>
+
                   </div>
+
                 );
               }
             )}
+
           </div>
+
         )}
 
-        {/* LOGOUT */}
+
+        {/* ===================================================
+            LOGOUT MODAL
+        =================================================== */}
 
         {showLogoutModal && (
+
           <div
             style={{
               position:
                 "fixed",
 
-              inset: 0,
+              inset:
+                0,
 
               background:
                 "rgba(15,23,42,0.4)",
@@ -1480,14 +2501,20 @@ const KitchenQueue = () => {
               justifyContent:
                 "center",
 
-              zIndex: 1000,
+              zIndex:
+                1000,
+
+              padding:
+                "20px",
             }}
+
             onClick={() =>
               setShowLogoutModal(
                 false
               )
             }
           >
+
             <div
               style={{
                 background:
@@ -1502,15 +2529,18 @@ const KitchenQueue = () => {
                 maxWidth:
                   "380px",
 
-                width: "90%",
+                width:
+                  "90%",
 
                 textAlign:
                   "center",
               }}
+
               onClick={(e) =>
                 e.stopPropagation()
               }
             >
+
               <h3
                 style={{
                   fontSize:
@@ -1525,20 +2555,24 @@ const KitchenQueue = () => {
                 }
               </h3>
 
+
               <div
                 style={{
                   display:
                     "flex",
 
-                  gap: "12px",
+                  gap:
+                    "12px",
                 }}
               >
+
                 <button
                   onClick={
                     confirmLogout
                   }
                   style={{
-                    flex: 1,
+                    flex:
+                      1,
 
                     padding:
                       "12px",
@@ -1557,10 +2591,14 @@ const KitchenQueue = () => {
 
                     fontWeight:
                       "700",
+
+                    cursor:
+                      "pointer",
                   }}
                 >
                   {t.yes}
                 </button>
+
 
                 <button
                   onClick={() =>
@@ -1569,7 +2607,8 @@ const KitchenQueue = () => {
                     )
                   }
                   style={{
-                    flex: 1,
+                    flex:
+                      1,
 
                     padding:
                       "12px",
@@ -1588,17 +2627,26 @@ const KitchenQueue = () => {
 
                     fontWeight:
                       "700",
+
+                    cursor:
+                      "pointer",
                   }}
                 >
                   {t.no}
                 </button>
+
               </div>
+
             </div>
+
           </div>
+
         )}
+
       </div>
     </div>
   );
 };
+
 
 export default KitchenQueue;

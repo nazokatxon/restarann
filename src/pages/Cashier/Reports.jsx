@@ -1,10 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
+
 import {
   collection,
+  onSnapshot,
   query,
   where,
-  onSnapshot,
 } from "firebase/firestore";
+
+import {
+  Receipt,
+  Banknote,
+  CreditCard,
+  CalendarDays,
+} from "lucide-react";
 
 import { db } from "../../firebase/config.js";
 import { useAuth } from "../../context/AuthContext";
@@ -16,9 +24,72 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("monthly");
 
-  // =========================================================
-  // BUYURTMALARNI OLISH
-  // =========================================================
+  // =====================================================
+  // DATE
+  // =====================================================
+
+  const getOrderDate = (order) => {
+    if (!order) return null;
+
+    try {
+      // Avval paidAt
+      if (order?.paidAt?.toDate) {
+        return order.paidAt.toDate();
+      }
+
+      // Firebase Timestamp seconds
+      if (
+        order?.paidAt?.seconds !== undefined
+      ) {
+        return new Date(
+          order.paidAt.seconds * 1000
+        );
+      }
+
+      // Oddiy paidAt
+      if (order?.paidAt) {
+        const date = new Date(order.paidAt);
+
+        if (!Number.isNaN(date.getTime())) {
+          return date;
+        }
+      }
+
+      // Keyin createdAt
+      if (order?.createdAt?.toDate) {
+        return order.createdAt.toDate();
+      }
+
+      if (
+        order?.createdAt?.seconds !== undefined
+      ) {
+        return new Date(
+          order.createdAt.seconds * 1000
+        );
+      }
+
+      if (order?.createdAt) {
+        const date = new Date(
+          order.createdAt
+        );
+
+        if (!Number.isNaN(date.getTime())) {
+          return date;
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Order sanasini olishda xato:",
+        error
+      );
+    }
+
+    return null;
+  };
+
+  // =====================================================
+  // ORDERS
+  // =====================================================
 
   useEffect(() => {
     if (!cafeId) {
@@ -31,17 +102,50 @@ export default function Reports() {
 
     const q = query(
       collection(db, "orders"),
-      where("cafeId", "==", cafeId),
-      where("paymentStatus", "==", "paid")
+      where(
+        "cafeId",
+        "==",
+        String(cafeId)
+      )
     );
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const data = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+          .filter((order) => {
+            const paymentStatus =
+              String(
+                order?.paymentStatus || ""
+              )
+                .trim()
+                .toLowerCase();
+
+            // Kassa yopgan cheklar
+            return (
+              paymentStatus === "paid" ||
+              order?.isPaid === true
+            );
+          });
+
+        data.sort((a, b) => {
+          const aDate =
+            getOrderDate(a)?.getTime() || 0;
+
+          const bDate =
+            getOrderDate(b)?.getTime() || 0;
+
+          return bDate - aDate;
+        });
+
+        console.log(
+          "REPORTS - PAID ORDERS:",
+          data
+        );
 
         setOrders(data);
         setLoading(false);
@@ -60,115 +164,185 @@ export default function Reports() {
     return () => unsubscribe();
   }, [cafeId]);
 
-  // =========================================================
-  // ORDER SANASINI OLISH
-  // =========================================================
-
-  const getOrderDate = (order) => {
-    if (order?.paidAt?.toDate) {
-      return order.paidAt.toDate();
-    }
-
-    if (order?.createdAt?.toDate) {
-      return order.createdAt.toDate();
-    }
-
-    if (order?.paidAt) {
-      const date = new Date(order.paidAt);
-
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
-    }
-
-    if (order?.createdAt) {
-      const date = new Date(order.createdAt);
-
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
-    }
-
-    return null;
-  };
-
-  // =========================================================
-  // ORDER SUMMASINI OLISH
-  // =========================================================
+  // =====================================================
+  // SUMMA
+  // =====================================================
 
   const getOrderTotal = (order) => {
-    if (
-      typeof order?.totalPrice === "number" &&
-      !isNaN(order.totalPrice)
-    ) {
-      return order.totalPrice;
-    }
+    const totalAmount = Number(
+      order?.totalAmount
+    );
 
     if (
-      typeof order?.total === "number" &&
-      !isNaN(order.total)
+      Number.isFinite(totalAmount) &&
+      totalAmount > 0
     ) {
-      return order.total;
+      return totalAmount;
     }
+
+    const totalPrice = Number(
+      order?.totalPrice
+    );
 
     if (
-      typeof order?.totalAmount === "number" &&
-      !isNaN(order.totalAmount)
+      Number.isFinite(totalPrice) &&
+      totalPrice > 0
     ) {
-      return order.totalAmount;
+      return totalPrice;
     }
+
+    const total = Number(
+      order?.total
+    );
 
     if (
-      typeof order?.amount === "number" &&
-      !isNaN(order.amount)
+      Number.isFinite(total) &&
+      total > 0
     ) {
-      return order.amount;
+      return total;
     }
 
-    return (order?.items || []).reduce(
-      (sum, item) => {
-        const price = Number(item?.price || 0);
+    const amount = Number(
+      order?.amount
+    );
 
-        const quantity = Number(
-          item?.quantity ||
-            item?.qty ||
-            1
-        );
+    if (
+      Number.isFinite(amount) &&
+      amount > 0
+    ) {
+      return amount;
+    }
 
-        return sum + price * quantity;
-      },
-      0
+    // Agar orderda total saqlanmagan bo'lsa,
+    // items orqali hisoblaymiz.
+    if (Array.isArray(order?.items)) {
+      return order.items.reduce(
+        (sum, item) => {
+          const price =
+            Number(item?.price) || 0;
+
+          const quantity =
+            Number(
+              item?.quantity ??
+                item?.qty ??
+                1
+            ) || 1;
+
+          return (
+            sum +
+            price * quantity
+          );
+        },
+        0
+      );
+    }
+
+    return 0;
+  };
+
+  // =====================================================
+  // TO'LOV TURI
+  // =====================================================
+
+  const getPaymentMethod = (order) => {
+    return String(
+      order?.paymentMethod || ""
+    )
+      .trim()
+      .toLowerCase();
+  };
+
+  const isCashPayment = (order) => {
+    const method =
+      getPaymentMethod(order);
+
+    return (
+      method === "cash" ||
+      method === "naqd" ||
+      method === "cash_payment"
     );
   };
 
-  // =========================================================
-  // VAQT BO'YICHA FILTER
-  // =========================================================
+  const isCardPayment = (order) => {
+    const method =
+      getPaymentMethod(order);
+
+    return (
+      method === "card" ||
+      method === "karta" ||
+      method === "plastic" ||
+      method === "plastik"
+    );
+  };
+
+  const getPaymentLabel = (order) => {
+    if (isCardPayment(order)) {
+      return "Plastik karta";
+    }
+
+    if (isCashPayment(order)) {
+      return "Naqd pul";
+    }
+
+    return "Noma'lum";
+  };
+
+  // =====================================================
+  // ORDER NUMBER
+  // =====================================================
+
+  const getOrderNumber = (order) => {
+    return (
+      order?.orderNumber ||
+      order?.orderNo ||
+      order?.number ||
+      `#${String(
+        order?.id || ""
+      ).slice(0, 8)}`
+    );
+  };
+
+  // =====================================================
+  // FILTER
+  // =====================================================
 
   const filteredOrders = useMemo(() => {
     const now = new Date();
 
     return orders.filter((order) => {
-      const orderDate = getOrderDate(order);
+      const orderDate =
+        getOrderDate(order);
 
       if (!orderDate) {
         return false;
       }
 
+      // =================================================
       // KUNLIK
+      // =================================================
+
       if (period === "daily") {
         return (
-          orderDate.getDate() === now.getDate() &&
-          orderDate.getMonth() === now.getMonth() &&
-          orderDate.getFullYear() === now.getFullYear()
+          orderDate.getDate() ===
+            now.getDate() &&
+          orderDate.getMonth() ===
+            now.getMonth() &&
+          orderDate.getFullYear() ===
+            now.getFullYear()
         );
       }
 
+      // =================================================
       // HAFTALIK
-      if (period === "weekly") {
-        const weekAgo = new Date(now);
+      // =================================================
 
-        weekAgo.setDate(now.getDate() - 7);
+      if (period === "weekly") {
+        const weekAgo =
+          new Date(now);
+
+        weekAgo.setDate(
+          now.getDate() - 7
+        );
 
         return (
           orderDate >= weekAgo &&
@@ -176,15 +350,23 @@ export default function Reports() {
         );
       }
 
+      // =================================================
       // OYLIK
+      // =================================================
+
       if (period === "monthly") {
         return (
-          orderDate.getMonth() === now.getMonth() &&
-          orderDate.getFullYear() === now.getFullYear()
+          orderDate.getMonth() ===
+            now.getMonth() &&
+          orderDate.getFullYear() ===
+            now.getFullYear()
         );
       }
 
+      // =================================================
       // YILLIK
+      // =================================================
+
       if (period === "yearly") {
         return (
           orderDate.getFullYear() ===
@@ -196,22 +378,13 @@ export default function Reports() {
     });
   }, [orders, period]);
 
-  // =========================================================
-  // NAQD TUSHUM
-  // =========================================================
+  // =====================================================
+  // NAQD
+  // =====================================================
 
   const cashTotal = useMemo(() => {
     return filteredOrders
-      .filter((order) => {
-        const method = String(
-          order?.paymentMethod || ""
-        ).toLowerCase();
-
-        return (
-          method === "cash" ||
-          method === "naqd"
-        );
-      })
+      .filter(isCashPayment)
       .reduce(
         (sum, order) =>
           sum + getOrderTotal(order),
@@ -219,22 +392,13 @@ export default function Reports() {
       );
   }, [filteredOrders]);
 
-  // =========================================================
-  // KARTA TUSHUM
-  // =========================================================
+  // =====================================================
+  // KARTA
+  // =====================================================
 
   const cardTotal = useMemo(() => {
     return filteredOrders
-      .filter((order) => {
-        const method = String(
-          order?.paymentMethod || ""
-        ).toLowerCase();
-
-        return (
-          method === "card" ||
-          method === "karta"
-        );
-      })
+      .filter(isCardPayment)
       .reduce(
         (sum, order) =>
           sum + getOrderTotal(order),
@@ -242,9 +406,9 @@ export default function Reports() {
       );
   }, [filteredOrders]);
 
-  // =========================================================
-  // JAMI TUSHUM
-  // =========================================================
+  // =====================================================
+  // JAMI
+  // =====================================================
 
   const grandTotal = useMemo(() => {
     return filteredOrders.reduce(
@@ -254,37 +418,69 @@ export default function Reports() {
     );
   }, [filteredOrders]);
 
-  // =========================================================
-  // FOIZLAR
-  // =========================================================
+  // =====================================================
+  // FOIZ
+  // =====================================================
 
-  const cashPercent = grandTotal
-    ? Math.round(
-        (cashTotal / grandTotal) * 100
-      )
-    : 0;
+  const cashPercent =
+    grandTotal > 0
+      ? Math.round(
+          (cashTotal /
+            grandTotal) *
+            100
+        )
+      : 0;
 
-  const cardPercent = grandTotal
-    ? Math.round(
-        (cardTotal / grandTotal) * 100
-      )
-    : 0;
+  const cardPercent =
+    grandTotal > 0
+      ? Math.round(
+          (cardTotal /
+            grandTotal) *
+            100
+        )
+      : 0;
 
-  // =========================================================
-  // PUL FORMAT
-  // =========================================================
+  // =====================================================
+  // MONEY
+  // =====================================================
 
   const formatMoney = (value) => {
     return (
-      new Intl.NumberFormat("uz-UZ").format(
+      new Intl.NumberFormat(
+        "uz-UZ"
+      ).format(
         Number(value) || 0
       ) + " so'm"
     );
   };
 
-  // =========================================================
+  // =====================================================
+  // DATE FORMAT
+  // =====================================================
+
+  const formatDate = (order) => {
+    const date =
+      getOrderDate(order);
+
+    if (!date) {
+      return "-";
+    }
+
+    return date.toLocaleString(
+      "uz-UZ",
+      {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }
+    );
+  };
+
+  // =====================================================
   // LOADING
-  // =========================================================
+  // =====================================================
 
   if (loading) {
     return (
@@ -296,23 +492,19 @@ export default function Reports() {
     );
   }
 
-  // =========================================================
+  // =====================================================
   // UI
-  // =========================================================
+  // =====================================================
 
   return (
     <div className="w-full max-w-[1200px] mx-auto">
 
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
+      {/* HEADER */}
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
 
-        {/* TITLE */}
-
         <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-black text-slate-900">
             Hisobotlar
           </h1>
 
@@ -323,7 +515,7 @@ export default function Reports() {
 
         {/* PERIOD */}
 
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl text-sm font-bold w-fit shadow-sm">
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl text-sm font-bold w-fit">
 
           {[
             {
@@ -346,30 +538,24 @@ export default function Reports() {
             <button
               key={p.id}
               type="button"
-              onClick={() => setPeriod(p.id)}
-              className={`
-                px-4
-                py-2.5
-                rounded-xl
-                transition-all
-                whitespace-nowrap
-                ${
-                  period === p.id
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
-                }
-              `}
+              onClick={() =>
+                setPeriod(p.id)
+              }
+              className={`px-4 py-2.5 rounded-xl ${
+                period === p.id
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
             >
               {p.label}
             </button>
           ))}
 
         </div>
+
       </div>
 
-      {/* =====================================================
-          TUSHUM KARTALARI
-      ===================================================== */}
+      {/* CARDS */}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
 
@@ -379,7 +565,7 @@ export default function Reports() {
 
           <div className="absolute left-0 top-0 w-1.5 h-full bg-emerald-500" />
 
-          <p className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">
+          <p className="text-xs font-extrabold text-slate-400 uppercase">
             Jami tushum
           </p>
 
@@ -387,8 +573,12 @@ export default function Reports() {
             {formatMoney(grandTotal)}
           </p>
 
-          <p className="text-xs text-slate-500 mt-2 font-medium">
-            Jami {filteredOrders.length} ta chek yopilgan
+          <p className="text-xs text-slate-500 mt-2">
+            Jami{" "}
+            <strong>
+              {filteredOrders.length}
+            </strong>{" "}
+            ta chek yopilgan
           </p>
 
         </div>
@@ -399,16 +589,26 @@ export default function Reports() {
 
           <div className="absolute left-0 top-0 w-1.5 h-full bg-amber-500" />
 
-          <p className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">
-            Naqd tushum
-          </p>
+          <div className="flex items-center gap-2">
+
+            <Banknote
+              size={18}
+              className="text-amber-600"
+            />
+
+            <p className="text-xs font-extrabold text-slate-400 uppercase">
+              Naqd tushum
+            </p>
+
+          </div>
 
           <p className="text-2xl sm:text-3xl font-black text-amber-700 mt-2">
             {formatMoney(cashTotal)}
           </p>
 
-          <p className="text-xs text-slate-500 mt-2 font-medium">
-            Ulushi: {cashPercent}%
+          <p className="text-xs text-slate-500 mt-2">
+            Ulushi:{" "}
+            {cashPercent}%
           </p>
 
         </div>
@@ -419,27 +619,35 @@ export default function Reports() {
 
           <div className="absolute left-0 top-0 w-1.5 h-full bg-blue-500" />
 
-          <p className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">
-            Karta tushumi
-          </p>
+          <div className="flex items-center gap-2">
+
+            <CreditCard
+              size={18}
+              className="text-blue-600"
+            />
+
+            <p className="text-xs font-extrabold text-slate-400 uppercase">
+              Karta tushumi
+            </p>
+
+          </div>
 
           <p className="text-2xl sm:text-3xl font-black text-blue-600 mt-2">
             {formatMoney(cardTotal)}
           </p>
 
-          <p className="text-xs text-slate-500 mt-2 font-medium">
-            Ulushi: {cardPercent}%
+          <p className="text-xs text-slate-500 mt-2">
+            Ulushi:{" "}
+            {cardPercent}%
           </p>
 
         </div>
 
       </div>
 
-      {/* =====================================================
-          TO'LOV TURLARI
-      ===================================================== */}
+      {/* PAYMENT RATIO */}
 
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm mb-6">
 
         <h3 className="font-extrabold text-slate-900 text-lg mb-6">
           To'lov turlari nisbati
@@ -447,7 +655,7 @@ export default function Reports() {
 
         <div className="space-y-6">
 
-          {/* NAQD */}
+          {/* CASH */}
 
           <div>
 
@@ -463,7 +671,7 @@ export default function Reports() {
 
             </div>
 
-            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
+            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
 
               <div
                 className="bg-amber-500 h-full rounded-full transition-all duration-500"
@@ -476,7 +684,7 @@ export default function Reports() {
 
           </div>
 
-          {/* KARTA */}
+          {/* CARD */}
 
           <div>
 
@@ -492,7 +700,7 @@ export default function Reports() {
 
             </div>
 
-            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
+            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
 
               <div
                 className="bg-blue-600 h-full rounded-full transition-all duration-500"
@@ -507,11 +715,136 @@ export default function Reports() {
 
         </div>
 
-        {/* INFO */}
+      </div>
 
-        <div className="mt-8 pt-4 border-t border-slate-100 text-xs text-slate-400 font-medium">
-          Ma'lumotlar tanlangan vaqt oralig'i bo'yicha hisoblangan.
+      {/* YOPILGAN CHEKLAR */}
+
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+
+        <div className="p-6 border-b border-slate-100">
+
+          <div className="flex items-center gap-2">
+
+            <Receipt
+              size={20}
+              className="text-slate-600"
+            />
+
+            <h3 className="font-extrabold text-slate-900 text-lg">
+              Yopilgan cheklar
+            </h3>
+
+          </div>
+
+          <p className="text-sm text-slate-500 mt-1">
+            Tanlangan davrda yopilgan barcha cheklar
+          </p>
+
         </div>
+
+        {filteredOrders.length === 0 ? (
+
+          <div className="py-16 text-center text-slate-400">
+
+            <Receipt
+              size={42}
+              className="mx-auto mb-3 text-slate-300"
+            />
+
+            <p className="font-semibold">
+              Yopilgan cheklar yo'q
+            </p>
+
+          </div>
+
+        ) : (
+
+          <div className="divide-y divide-slate-100">
+
+            {filteredOrders.map(
+              (order) => (
+                <div
+                  key={order.id}
+                  className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-slate-50"
+                >
+
+                  <div className="flex items-start gap-4">
+
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
+
+                      {isCardPayment(order) ? (
+                        <CreditCard
+                          size={19}
+                          className="text-blue-600"
+                        />
+                      ) : (
+                        <Banknote
+                          size={19}
+                          className="text-amber-600"
+                        />
+                      )}
+
+                    </div>
+
+                    <div>
+
+                      <p className="font-black text-slate-900">
+                        {getOrderNumber(order)}
+                      </p>
+
+                      <p className="text-xs text-slate-500 mt-1">
+                        {formatDate(order)}
+                      </p>
+
+                      {order.tableNumber && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          {order.tableNumber}-stol
+                        </p>
+                      )}
+
+                    </div>
+
+                  </div>
+
+                  <div className="flex items-center justify-between sm:justify-end gap-6">
+
+                    <p
+                      className={`text-xs font-bold ${
+                        isCardPayment(order)
+                          ? "text-blue-600"
+                          : isCashPayment(order)
+                          ? "text-amber-700"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      {getPaymentLabel(order)}
+                    </p>
+
+                    <p className="font-black text-slate-900">
+                      {formatMoney(
+                        getOrderTotal(order)
+                      )}
+                    </p>
+
+                  </div>
+
+                </div>
+              )
+            )}
+
+          </div>
+
+        )}
+
+      </div>
+
+      {/* INFO */}
+
+      <div className="mt-5 flex items-center gap-2 text-xs text-slate-400 font-medium">
+
+        <CalendarDays size={15} />
+
+        Ma'lumotlar tanlangan vaqt oralig'i bo'yicha hisoblangan.
 
       </div>
 
