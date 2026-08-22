@@ -1,390 +1,49 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   collection,
   onSnapshot,
+  query,
   updateDoc,
   doc,
   serverTimestamp,
 } from "firebase/firestore";
 import { getAuth, signOut } from "firebase/auth";
-import { db } from "../../firebase/config.js";
-import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+import { db } from "../../firebase/config.js";
 
-const KitchenQueue = () => {
+export default function KitchenQueue() {
   const navigate = useNavigate();
   const auth = getAuth();
 
-  // =========================================================
-  // STATE
-  // =========================================================
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [language, setLanguage] = useState(
-    localStorage.getItem("appLang") || "uz"
-  );
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [updatingItem, setUpdatingItem] = useState("");
 
   // =========================================================
-  // REFS
+  // ORDERS REALTIME LISTENER
   // =========================================================
-  const audioCtxRef = useRef(null);
-  const audioEnabledRef = useRef(false);
-  const previousOrdersRef = useRef(new Map());
-  const previousItemsRef = useRef(new Map());
-  const isInitialLoadRef = useRef(true);
-  const notificationQueueRef = useRef([]);
-  const notificationPlayingRef = useRef(false);
-  const languageRef = useRef(language);
 
-  // =========================================================
-  // LANGUAGE REF SYNC
-  // =========================================================
-  useEffect(() => {
-    languageRef.current = language;
-  }, [language]);
-
-  // =========================================================
-  // TEXT TRANSLATIONS
-  // =========================================================
-  const TEXT = {
-    uz: {
-      title: "Oshxona Navbati",
-      activeCount: "ta faol stol",
-      inQueue: "NAVBATDA",
-      readyBtn: "Tayyor",
-      empty: "Hozircha faol buyurtmalar yo‘q",
-      emptySub: "Yangi buyurtma tushganda avtomatik paydo bo‘ladi.",
-      logoutTitle: "Tizimdan chiqishni tasdiqlaysizmi?",
-      yes: "Ha",
-      no: "Yo‘q",
-      newOrder: "Yangi buyurtma tushdi!",
-      readyMessage: "Taom tayyor! Ofitsiantga yuborildi.",
-      langName: "O'zbekcha",
-      minAgo: "daq. o'tdi",
-      cafeName: "Karavan Kafe",
-      allTaken: "Barcha taomlar olib ketildi ✅",
-      soundOn: "Ovozni yoqish",
-      soundOnSuccess: "🔊 Ovoz yoqildi!",
-      soundOff: "Ovoz yoqilmagan",
-      soundRequired: "Yangi buyurtma ovozini eshitish uchun ovozni yoqing.",
-    },
-    ru: {
-      title: "Очередь Кухни",
-      activeCount: "активных столов",
-      inQueue: "В ОЧЕРЕДИ",
-      readyBtn: "Готово",
-      empty: "Активных заказов нет",
-      emptySub: "Новые заказы появятся автоматически.",
-      logoutTitle: "Вы действительно хотите выйти?",
-      yes: "Да",
-      no: "Нет",
-      newOrder: "Новый заказ!",
-      readyMessage: "Блюдо готово! Отправлено официанту.",
-      langName: "Русский",
-      minAgo: "мин. назад",
-      cafeName: "Karavan Kafe",
-      allTaken: "Все блюда забраны ✅",
-      soundOn: "Включить звук",
-      soundOnSuccess: "🔊 Звук включён!",
-      soundOff: "Звук не включён",
-      soundRequired: "Включите звук, чтобы слышать новые заказы.",
-    },
-  };
-
-  const t = TEXT[language] || TEXT.uz;
-
-  const toggleLanguage = () => {
-    const nextLang = language === "uz" ? "ru" : "uz";
-    setLanguage(nextLang);
-    localStorage.setItem("appLang", nextLang);
-  };
-
-  // =========================================================
-  // 🔊 WEB AUDIO CONTEXT ENGINE
-  // =========================================================
-  const getAudioContext = () => {
-    try {
-      const AudioContextClass =
-        window.AudioContext || window.webkitAudioContext;
-
-      if (!AudioContextClass) {
-        console.error("Brauzer Web Audio API ni qo'llamaydi.");
-        return null;
-      }
-
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioContextClass();
-      }
-
-      return audioCtxRef.current;
-    } catch (error) {
-      console.error("AudioContext yaratishda xatolik:", error);
-      return null;
-    }
-  };
-
-  const unlockAudio = async () => {
-    try {
-      const ctx = getAudioContext();
-      if (!ctx) return false;
-
-      if (ctx.state === "suspended") {
-        await ctx.resume();
-      }
-
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(440, ctx.currentTime);
-      gain.gain.setValueAtTime(0.00001, ctx.currentTime);
-
-      oscillator.connect(gain);
-      gain.connect(ctx.destination);
-
-      oscillator.start();
-      oscillator.stop(ctx.currentTime + 0.01);
-
-      audioEnabledRef.current = true;
-      setAudioEnabled(true);
-      return true;
-    } catch (error) {
-      console.error("Audio unlock xatosi:", error);
-      return false;
-    }
-  };
-
-  const enableAudio = async () => {
-    const success = await unlockAudio();
-    if (success) {
-      toast.success(t.soundOnSuccess, { autoClose: 2000 });
-      await playNewOrderSound();
-    }
-  };
-
-  useEffect(() => {
-    const handleInteraction = async () => {
-      if (!audioEnabledRef.current) {
-        await unlockAudio();
-      }
-    };
-
-    window.addEventListener("click", handleInteraction);
-    window.addEventListener("touchstart", handleInteraction);
-    window.addEventListener("keydown", handleInteraction);
-
-    return () => {
-      window.removeEventListener("click", handleInteraction);
-      window.removeEventListener("touchstart", handleInteraction);
-      window.removeEventListener("keydown", handleInteraction);
-    };
-  }, []);
-
-  // =========================================================
-  // 🔊 AUDIO SOUND EFFECTS
-  // =========================================================
-  const playNewOrderSound = async () => {
-    try {
-      const ctx = getAudioContext();
-      if (!ctx) return;
-
-      if (ctx.state === "suspended") {
-        await ctx.resume();
-      }
-
-      const start = ctx.currentTime;
-
-      const beep = (delay, frequency, duration, volume = 0.75) => {
-        const oscillator = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        oscillator.type = "sine";
-        oscillator.frequency.setValueAtTime(frequency, start + delay);
-
-        gain.gain.setValueAtTime(0.0001, start + delay);
-        gain.gain.exponentialRampToValueAtTime(volume, start + delay + 0.03);
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + delay + duration);
-
-        oscillator.connect(gain);
-        gain.connect(ctx.destination);
-
-        oscillator.start(start + delay);
-        oscillator.stop(start + delay + duration + 0.05);
-      };
-
-      beep(0, 880, 0.3, 0.75);
-      beep(0.35, 1100, 0.3, 0.8);
-      beep(0.7, 880, 0.45, 0.75);
-    } catch (error) {
-      console.error("New order audio error:", error);
-    }
-  };
-
-  const playReadySound = async () => {
-    try {
-      const ctx = getAudioContext();
-      if (!ctx) return;
-
-      if (ctx.state === "suspended") {
-        await ctx.resume();
-      }
-
-      const start = ctx.currentTime;
-
-      const beep = (delay, frequency, duration) => {
-        const oscillator = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        oscillator.type = "triangle";
-        oscillator.frequency.setValueAtTime(frequency, start + delay);
-
-        gain.gain.setValueAtTime(0.0001, start + delay);
-        gain.gain.exponentialRampToValueAtTime(0.6, start + delay + 0.03);
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + delay + duration);
-
-        oscillator.connect(gain);
-        gain.connect(ctx.destination);
-
-        oscillator.start(start + delay);
-        oscillator.stop(start + delay + duration + 0.05);
-      };
-
-      beep(0, 660, 0.25);
-      beep(0.3, 880, 0.25);
-      beep(0.6, 1100, 0.35);
-    } catch (error) {
-      console.error("Ready audio error:", error);
-    }
-  };
-
-  // =========================================================
-  // 🔔 NOTIFICATION QUEUE
-  // =========================================================
-  const showNextNotification = async () => {
-    if (notificationPlayingRef.current || notificationQueueRef.current.length === 0) {
-      return;
-    }
-
-    notificationPlayingRef.current = true;
-    const notification = notificationQueueRef.current.shift();
-
-    try {
-      if (audioEnabledRef.current) {
-        await playNewOrderSound();
-      }
-
-      toast.info(`🔔 Stol №${notification.tableNumber}: ${notification.message}`, {
-        position: "top-center",
-        autoClose: 4000,
-        toastId: notification.id,
-      });
-    } catch (error) {
-      console.error("Notification display error:", error);
-    }
-
-    setTimeout(() => {
-      notificationPlayingRef.current = false;
-      showNextNotification();
-    }, 1800);
-  };
-
-  // =========================================================
-  // 🔥 FIRESTORE REALTIME SYNC
-  // =========================================================
   useEffect(() => {
     setLoading(true);
-    const ordersRef = collection(db, "orders");
+
+    const qOrders = query(collection(db, "orders"));
 
     const unsubscribe = onSnapshot(
-      ordersRef,
+      qOrders,
       (snapshot) => {
-        try {
-          const allOrders = snapshot.docs.map((docSnap) => ({
-            id: docSnap.id,
-            ...docSnap.data(),
-          }));
+        const data = snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        }));
 
-          const kitchenOrders = allOrders.filter((order) => {
-            const rawItems = Array.isArray(order.kitchenItems)
-              ? order.kitchenItems
-              : Array.isArray(order.items)
-              ? order.items
-              : Array.isArray(order.products)
-              ? order.products
-              : [];
-
-            if (rawItems.length === 0) return false;
-
-            return rawItems.some(
-              (item) => item.readyForWaiter !== true && item.waiterTaken !== true
-            );
-          });
-
-          const getTime = (order) => {
-            if (order.createdAt?.seconds) return order.createdAt.seconds * 1000;
-            if (order.createdAt?.toDate) return order.createdAt.toDate().getTime();
-            if (typeof order.createdAt === "number") return order.createdAt;
-            return Date.now();
-          };
-
-          kitchenOrders.sort((a, b) => getTime(a) - getTime(b));
-
-          if (isInitialLoadRef.current) {
-            kitchenOrders.forEach((order) => {
-              previousOrdersRef.current.set(order.id, order);
-            });
-            isInitialLoadRef.current = false;
-          } else {
-            kitchenOrders.forEach((order) => {
-              const oldOrder = previousOrdersRef.current.get(order.id);
-              const tableNumber =
-                order.tableNumber ?? order.table ?? order.tableNo ?? "—";
-
-              if (!oldOrder) {
-                notificationQueueRef.current.push({
-                  id: `new-order-${order.id}`,
-                  tableNumber,
-                  message:
-                    languageRef.current === "ru"
-                      ? "Новый заказ!"
-                      : "Yangi buyurtma tushdi!",
-                });
-                showNextNotification();
-              } else {
-                const getItems = (o) =>
-                  o.kitchenItems || o.items || o.products || [];
-                const oldItems = getItems(oldOrder);
-                const newItems = getItems(order);
-
-                if (newItems.length > oldItems.length) {
-                  notificationQueueRef.current.push({
-                    id: `new-item-${order.id}-${newItems.length}-${Date.now()}`,
-                    tableNumber,
-                    message:
-                      languageRef.current === "ru"
-                        ? "Добавлено новое блюдо!"
-                        : "Yangi taom qo'shildi!",
-                  });
-                  showNextNotification();
-                }
-              }
-
-              previousOrdersRef.current.set(order.id, order);
-            });
-          }
-
-          setOrders(kitchenOrders);
-          setLoading(false);
-        } catch (error) {
-          console.error("Firestore parsing error:", error);
-          setLoading(false);
-        }
+        setOrders(data);
+        setLoading(false);
       },
       (error) => {
-        console.error("Firestore listener error:", error);
-        toast.error("Baza bilan aloqa uzildi: " + error.message);
+        console.error("Kitchen orders error:", error);
+        toast.error("Buyurtmalarni yuklashda xatolik!");
         setLoading(false);
       }
     );
@@ -393,207 +52,643 @@ const KitchenQueue = () => {
   }, []);
 
   // =========================================================
-  // 🍽️ TAOMNI TAYYOR DEB BELGILASH
+  // GET ITEMS
   // =========================================================
-  const handleItemReady = async (order, itemIndex) => {
-    try {
-      let fieldName = "kitchenItems";
-      if (Array.isArray(order.kitchenItems)) fieldName = "kitchenItems";
-      else if (Array.isArray(order.items)) fieldName = "items";
-      else if (Array.isArray(order.products)) fieldName = "products";
 
-      const rawItems = order[fieldName] || [];
-      const updatedItems = [...rawItems];
-      const item = updatedItems[itemIndex];
+  const getOrderItems = (order) => {
+    if (!order) return [];
+
+    if (Array.isArray(order.kitchenItems)) {
+      return order.kitchenItems;
+    }
+
+    if (Array.isArray(order.items)) {
+      return order.items;
+    }
+
+    if (Array.isArray(order.products)) {
+      return order.products;
+    }
+
+    return [];
+  };
+
+  // =========================================================
+  // GET FIELD NAME
+  // =========================================================
+
+  const getItemsFieldName = (order) => {
+    if (Array.isArray(order.kitchenItems)) {
+      return "kitchenItems";
+    }
+
+    if (Array.isArray(order.items)) {
+      return "items";
+    }
+
+    if (Array.isArray(order.products)) {
+      return "products";
+    }
+
+    return "kitchenItems";
+  };
+
+  // =========================================================
+  // ACTIVE ORDERS
+  // =========================================================
+
+  const activeOrders = useMemo(() => {
+    return orders
+      .filter((order) => {
+        const status = String(order.status || "")
+          .trim()
+          .toLowerCase();
+
+        const kitchenStatus = String(
+          order.kitchenStatus || ""
+        )
+          .trim()
+          .toLowerCase();
+
+        const paymentStatus = String(
+          order.paymentStatus || ""
+        )
+          .trim()
+          .toLowerCase();
+
+        const isClosed =
+          status === "closed" ||
+          status === "completed" ||
+          status === "paid" ||
+          status === "waiting_payment" ||
+          status === "cancelled" ||
+          paymentStatus === "paid" ||
+          paymentStatus === "cancelled" ||
+          kitchenStatus === "closed";
+
+        return !isClosed;
+      })
+      .filter((order) => {
+        const items = getOrderItems(order);
+
+        return items.some(
+          (item) =>
+            item.readyForWaiter !== true &&
+            item.isReady !== true &&
+            item.waiterTaken !== true &&
+            item.isDelivered !== true
+        );
+      })
+      .sort((a, b) => {
+        const getTime = (value) => {
+          if (!value) return 0;
+
+          if (value?.toDate) {
+            return value.toDate().getTime();
+          }
+
+          const date = new Date(value);
+
+          return Number.isNaN(date.getTime())
+            ? 0
+            : date.getTime();
+        };
+
+        return (
+          getTime(a.createdAt) -
+          getTime(b.createdAt)
+        );
+      });
+  }, [orders]);
+
+  // =========================================================
+  // FORMAT TIME
+  // =========================================================
+
+  const formatTime = (date) => {
+    if (!date) return "--:--";
+
+    try {
+      const value = date?.toDate
+        ? date.toDate()
+        : new Date(date);
+
+      if (Number.isNaN(value.getTime())) {
+        return "--:--";
+      }
+
+      return value.toLocaleTimeString("uz-UZ", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "--:--";
+    }
+  };
+
+  // =========================================================
+  // GET TABLE NUMBER
+  // =========================================================
+
+  const getTableNumber = (order) => {
+    return (
+      order.tableNumber ??
+      order.table ??
+      order.tableNo ??
+      "-"
+    );
+  };
+
+  // =========================================================
+  // GET ITEM NAME
+  // =========================================================
+
+  const getItemName = (item) => {
+    return (
+      item?.name ||
+      item?.title ||
+      item?.productName ||
+      "Nomsiz taom"
+    );
+  };
+
+  // =========================================================
+  // ITEM KEY
+  // =========================================================
+
+  const getItemKey = (item, index) => {
+    return (
+      item?.id ||
+      item?.itemId ||
+      item?.productId ||
+      `${getItemName(item)}-${index}`
+    );
+  };
+
+  // =========================================================
+  // ITEM TAYYOR QILISH
+  // =========================================================
+
+  const handleMarkReady = async (
+    order,
+    itemIndex
+  ) => {
+    const updatingKey = `${order.id}-${itemIndex}`;
+
+    try {
+      setUpdatingItem(updatingKey);
+
+      const fieldName = getItemsFieldName(order);
+      const items = [...getOrderItems(order)];
+
+      const item = items[itemIndex];
 
       if (!item) {
-        toast.error("Taom ma'lumotlari topilmadi!");
+        toast.error("Taom topilmadi!");
         return;
       }
 
-      if (item.readyForWaiter === true) {
-        toast.info("Bu taom allaqachon tayyor.");
+      const isAlreadyReady =
+        item.readyForWaiter === true ||
+        item.isReady === true;
+
+      if (isAlreadyReady) {
+        toast.info("Bu taom allaqachon tayyor!");
         return;
       }
 
-      updatedItems[itemIndex] = {
+      items[itemIndex] = {
         ...item,
         readyForWaiter: true,
-        waiterTaken: false,
+        isReady: true,
+        kitchenItemStatus: "ready",
         readyAt: new Date().toISOString(),
       };
 
-      const allReady =
-        updatedItems.length > 0 &&
-        updatedItems.every(
-          (curr) => curr.readyForWaiter === true || curr.waiterTaken === true
-        );
+      const pendingItems = items.filter(
+        (currentItem) =>
+          currentItem.readyForWaiter !== true &&
+          currentItem.isReady !== true &&
+          currentItem.waiterTaken !== true &&
+          currentItem.isDelivered !== true
+      );
 
-      await updateDoc(doc(db, "orders", order.id), {
-        [fieldName]: updatedItems,
-        kitchenStatus: allReady ? "ready" : "preparing",
-        status: allReady ? "ready" : "preparing",
-        updatedAt: serverTimestamp(),
-      });
-
-      if (audioEnabledRef.current) {
-        await playReadySound();
-      }
+      await updateDoc(
+        doc(db, "orders", order.id),
+        {
+          [fieldName]: items,
+          kitchenStatus:
+            pendingItems.length === 0
+              ? "ready"
+              : "preparing",
+          updatedAt: serverTimestamp(),
+        }
+      );
 
       toast.success(
-        `✅ ${item.name || item.title || item.productName || "Taom"} ${t.readyMessage}`,
-        { autoClose: 2500 }
+        `✅ ${getItemName(item)} tayyor bo'ldi!`
       );
     } catch (error) {
-      console.error("Taomni tayyor qilishda xatolik:", error);
-      toast.error("Xatolik yuz berdi!");
+      console.error("Mark ready error:", error);
+      toast.error(
+        "Taom holatini yangilashda xatolik!"
+      );
+    } finally {
+      setUpdatingItem("");
     }
   };
+
+  // =========================================================
+  // BARCHASINI TAYYOR
+  // =========================================================
+
+  const handleOrderReady = async (order) => {
+    try {
+      const fieldName = getItemsFieldName(order);
+      const items = [...getOrderItems(order)];
+
+      const newItems = items.map((item) => {
+        const isDelivered =
+          item.waiterTaken === true ||
+          item.isDelivered === true;
+
+        if (isDelivered) {
+          return item;
+        }
+
+        return {
+          ...item,
+          readyForWaiter: true,
+          isReady: true,
+          kitchenItemStatus: "ready",
+          readyAt:
+            item.readyAt ||
+            new Date().toISOString(),
+        };
+      });
+
+      await updateDoc(
+        doc(db, "orders", order.id),
+        {
+          [fieldName]: newItems,
+          kitchenStatus: "ready",
+          updatedAt: serverTimestamp(),
+        }
+      );
+
+      toast.success(
+        `🍲 Stol № ${getTableNumber(
+          order
+        )} buyurtmasi tayyor!`
+      );
+    } catch (error) {
+      console.error("Order ready error:", error);
+      toast.error(
+        "Buyurtmani yangilashda xatolik!"
+      );
+    }
+  };
+
+  // =========================================================
+  // LOGOUT
+  // =========================================================
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
+
+      toast.info("Tizimdan chiqdingiz");
+
       navigate("/login");
     } catch (error) {
       console.error("Logout error:", error);
-      toast.error("Chiqishda xatolik!");
+
+      toast.error(
+        "Tizimdan chiqishda xatolik!"
+      );
     }
   };
 
   // =========================================================
-  // RENDER UI
+  // LOADING
   // =========================================================
-  return (
-    <div className="min-h-screen bg-gray-900 text-white p-4">
-      {/* Header */}
-      <header className="flex justify-between items-center mb-6 bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
-        <div>
-          <h1 className="text-2xl font-bold text-amber-500">{t.title}</h1>
-          <p className="text-sm text-gray-400">{t.cafeName}</p>
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f8f5ef] flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-5xl mb-3">
+            👨‍🍳
+          </div>
+
+          <p className="font-bold text-gray-500">
+            Oshxona buyurtmalari yuklanmoqda...
+          </p>
         </div>
+      </div>
+    );
+  }
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={enableAudio}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-              audioEnabled
-                ? "bg-emerald-600/20 text-emerald-400 border border-emerald-500/30"
-                : "bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse"
-            }`}
-          >
-            {audioEnabled ? `🔊 ${t.soundOn}` : `🔇 ${t.soundOff}`}
-          </button>
+  // =========================================================
+  // UI
+  // =========================================================
+
+  return (
+    <div className="min-h-screen bg-[#f8f5ef] text-gray-800">
+      {/* HEADER */}
+
+      <header className="sticky top-0 z-30 bg-white border-b border-[#eee5d8] shadow-sm">
+        <div className="w-full max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-[#fff0d2] flex items-center justify-center text-xl">
+              👨‍🍳
+            </div>
+
+            <div>
+              <h1 className="text-base font-extrabold text-[#6f3518]">
+                KARAVAN KAFE
+              </h1>
+
+              <p className="text-[11px] text-gray-400">
+                Oshxona paneli
+              </p>
+            </div>
+          </div>
 
           <button
-            onClick={toggleLanguage}
-            className="bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition"
+            type="button"
+            onClick={() =>
+              setLogoutModalOpen(true)
+            }
+            className="border border-red-200 text-red-500 bg-white hover:bg-red-50 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer"
           >
-            🌐 {t.langName}
-          </button>
-
-          <button
-            onClick={() => setShowLogoutModal(true)}
-            className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition"
-          >
-            🚪 Chiqish
+            ↪ Chiqish
           </button>
         </div>
       </header>
 
-      {/* Loading state */}
-      {loading ? (
-        <div className="flex justify-center items-center py-20 text-amber-500">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-500"></div>
-        </div>
-      ) : orders.length === 0 ? (
-        <div className="text-center py-20 bg-gray-800/50 rounded-2xl border border-gray-800">
-          <p className="text-xl font-semibold text-gray-300">{t.empty}</p>
-          <p className="text-sm text-gray-500 mt-2">{t.emptySub}</p>
-        </div>
-      ) : (
-        /* Orders Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {orders.map((order) => {
-            const tableNo =
-              order.tableNumber ?? order.table ?? order.tableNo ?? "—";
-            const items =
-              order.kitchenItems || order.items || order.products || [];
+      {/* MAIN */}
 
-            return (
-              <div
-                key={order.id}
-                className="bg-gray-800 rounded-xl p-4 border border-gray-700 shadow-md flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-700">
-                    <span className="text-lg font-bold text-amber-400">
-                      Stol №{tableNo}
-                    </span>
-                    <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
-                      {t.inQueue}
-                    </span>
+      <main className="w-full max-w-6xl mx-auto px-4 py-5">
+        {/* TITLE */}
+
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
+          <div>
+            <h2 className="text-2xl font-black text-[#3b2418]">
+              Oshxona buyurtmalari
+            </h2>
+
+            <p className="text-sm text-gray-400 mt-1">
+              Yangi kelgan buyurtmalarni tayyorlang
+            </p>
+          </div>
+
+          <div className="bg-white border border-[#eee5d8] rounded-xl px-4 py-3 shadow-sm">
+            <span className="text-xs text-gray-400">
+              Faol buyurtmalar
+            </span>
+
+            <p className="font-black text-lg text-[#d97706]">
+              {activeOrders.length} ta
+            </p>
+          </div>
+        </div>
+
+        {/* EMPTY */}
+
+        {activeOrders.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-dashed border-gray-300 py-20 text-center">
+            <div className="text-5xl mb-4">
+              👨‍🍳
+            </div>
+
+            <h3 className="font-extrabold text-gray-700">
+              Hozircha yangi buyurtmalar yo'q
+            </h3>
+
+            <p className="text-sm text-gray-400 mt-2">
+              Yangi buyurtma kelganda shu yerda
+              avtomatik chiqadi
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {activeOrders.map((order) => {
+              const items = getOrderItems(order);
+
+              const pendingItems = items.filter(
+                (item) =>
+                  item.readyForWaiter !== true &&
+                  item.isReady !== true &&
+                  item.waiterTaken !== true &&
+                  item.isDelivered !== true
+              );
+
+              const readyItems = items.filter(
+                (item) =>
+                  item.readyForWaiter === true ||
+                  item.isReady === true ||
+                  item.waiterTaken === true ||
+                  item.isDelivered === true
+              );
+
+              const total = items.reduce(
+                (sum, item) =>
+                  sum +
+                  Number(item.price || 0) *
+                    Number(
+                      item.quantity ||
+                        item.count ||
+                        1
+                    ),
+                0
+              );
+
+              return (
+                <div
+                  key={order.id}
+                  className="bg-white rounded-2xl border border-[#eee5d8] shadow-sm overflow-hidden"
+                >
+                  {/* CARD HEADER */}
+
+                  <div className="bg-[#3b2418] text-white px-4 py-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-white/60">
+                        STOL
+                      </p>
+
+                      <h3 className="text-2xl font-black">
+                        № {getTableNumber(order)}
+                      </h3>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-xs text-white/60">
+                        🕐 {formatTime(order.createdAt)}
+                      </div>
+
+                      <div className="mt-2 bg-[#d97706] rounded-lg px-2 py-1 text-[10px] font-bold">
+                        {pendingItems.length} TA KUTILMOQDA
+                      </div>
+                    </div>
                   </div>
 
-                  <ul className="space-y-2 mb-4">
-                    {items.map((item, idx) => {
-                      const isReady = item.readyForWaiter === true;
-                      if (item.waiterTaken === true) return null;
+                  {/* ITEMS */}
+
+                  <div className="p-4 space-y-2 max-h-[380px] overflow-y-auto">
+                    {items.map((item, index) => {
+                      const isReady =
+                        item.readyForWaiter === true ||
+                        item.isReady === true;
+
+                      const isDelivered =
+                        item.waiterTaken === true ||
+                        item.isDelivered === true;
+
+                      const updatingKey =
+                        `${order.id}-${index}`;
 
                       return (
-                        <li
-                          key={idx}
-                          className="flex justify-between items-center bg-gray-900/60 p-2.5 rounded-lg border border-gray-700/50"
+                        <div
+                          key={getItemKey(
+                            item,
+                            index
+                          )}
+                          className={`rounded-xl border p-3 ${
+                            isDelivered
+                              ? "bg-green-50 border-green-200"
+                              : isReady
+                              ? "bg-blue-50 border-blue-200"
+                              : "bg-[#fffaf3] border-[#f2e3cf]"
+                          }`}
                         >
-                          <div>
-                            <p className="text-sm font-semibold text-gray-200">
-                              {item.name || item.title || item.productName || "Taom"}
-                            </p>
-                            <span className="text-xs text-amber-500 font-bold">
-                              x{item.quantity || item.count || 1}
-                            </span>
-                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-sm">
+                                {getItemName(item)}
+                              </h4>
 
-                          <button
-                            disabled={isReady}
-                            onClick={() => handleItemReady(order, idx)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                              isReady
-                                ? "bg-emerald-600/20 text-emerald-400 cursor-not-allowed border border-emerald-500/30"
-                                : "bg-amber-500 hover:bg-amber-600 text-gray-950 shadow-md"
-                            }`}
-                          >
-                            {isReady ? "✓ Tayyor" : t.readyBtn}
-                          </button>
-                        </li>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Miqdor:{" "}
+                                <b>
+                                  {item.quantity ||
+                                    item.count ||
+                                    1}
+                                </b>
+                              </p>
+                            </div>
+
+                            <div className="shrink-0">
+                              {isDelivered ? (
+                                <span className="inline-flex bg-green-200 text-green-800 px-3 py-2 rounded-lg text-xs font-bold">
+                                  🚚 Yetkazildi
+                                </span>
+                              ) : isReady ? (
+                                <span className="inline-flex bg-blue-200 text-blue-800 px-3 py-2 rounded-lg text-xs font-bold">
+                                  ✅ Tayyor
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleMarkReady(
+                                      order,
+                                      index
+                                    )
+                                  }
+                                  disabled={
+                                    updatingItem ===
+                                    updatingKey
+                                  }
+                                  className="bg-[#d97706] hover:bg-[#c56600] disabled:bg-gray-300 text-white px-3 py-2 rounded-lg text-xs font-bold cursor-pointer"
+                                >
+                                  {updatingItem ===
+                                  updatingKey
+                                    ? "..."
+                                    : "✓ Tayyor"}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       );
                     })}
-                  </ul>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                  </div>
 
-      {/* Logout Confirmation Modal */}
-      {showLogoutModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center p-4 z-50">
-          <div className="bg-gray-800 border border-gray-700 p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl">
-            <p className="text-lg font-semibold text-gray-200 mb-6">
-              {t.logoutTitle}
+                  {/* FOOTER */}
+
+                  <div className="border-t border-gray-100 p-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-sm font-bold text-gray-500">
+                        Jami:
+                      </span>
+
+                      <span className="font-black text-[#3b2418]">
+                        {total.toLocaleString()} so'm
+                      </span>
+                    </div>
+
+                    {pendingItems.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleOrderReady(order)
+                        }
+                        className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold text-sm cursor-pointer transition active:scale-[0.98]"
+                      >
+                        🍲 Hammasini tayyor qilish
+                      </button>
+                    )}
+
+                    {pendingItems.length === 0 &&
+                      readyItems.length > 0 && (
+                        <div className="w-full bg-green-50 text-green-700 py-3 rounded-xl text-center font-bold text-sm">
+                          ✅ Ofitsiantga tayyor
+                        </div>
+                      )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+
+      {/* LOGOUT MODAL */}
+
+      {logoutModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 text-center">
+            <div className="text-4xl mb-3">
+              🚪
+            </div>
+
+            <h3 className="text-lg font-extrabold text-gray-800 mb-2">
+              Tizimdan chiqish
+            </h3>
+
+            <p className="text-sm text-gray-500 mb-5">
+              Haqiqatan ham tizimdan
+              chiqmoqchimisiz?
             </p>
-            <div className="flex justify-center gap-4">
+
+            <div className="flex gap-3">
               <button
-                onClick={handleLogout}
-                className="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2 rounded-xl text-sm font-semibold transition"
+                type="button"
+                onClick={() =>
+                  setLogoutModalOpen(false)
+                }
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl text-sm cursor-pointer"
               >
-                {t.yes}
+                Bekor qilish
               </button>
+
               <button
-                onClick={() => setShowLogoutModal(false)}
-                className="bg-gray-700 hover:bg-gray-600 text-gray-300 px-5 py-2 rounded-xl text-sm font-semibold transition"
+                type="button"
+                onClick={handleLogout}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl text-sm cursor-pointer"
               >
-                {t.no}
+                Chiqish
               </button>
             </div>
           </div>
@@ -601,6 +696,4 @@ const KitchenQueue = () => {
       )}
     </div>
   );
-};
-
-export default KitchenQueue;
+}

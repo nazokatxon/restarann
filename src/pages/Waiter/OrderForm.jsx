@@ -1,2178 +1,660 @@
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  useNavigate,
-  useSearchParams,
-} from "react-router-dom";
-
-import {
-  collection,
-  onSnapshot,
   addDoc,
+  collection,
   doc,
   getDoc,
-  updateDoc,
-  query,
-  where,
   getDocs,
   serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
-
-import { getAuth } from "firebase/auth";
-
-import { db } from "../../firebase/config.js";
-import { useAuth } from "../../context/AuthContext";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
+import { db } from "../../firebase/config.js";
 
 export default function OrderForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const authData = useAuth();
+  const tableNumber = searchParams.get("table");
+  const orderId = searchParams.get("orderId");
 
-  const cafeId = authData?.cafeId || null;
-  const contextUser = authData?.currentUser || null;
-
-  // =========================================================
-  // FIREBASE CURRENT USER
-  // =========================================================
-
-  const getLoggedInUser = useCallback(() => {
-    try {
-      const firebaseAuth = getAuth();
-
-      return (
-        contextUser ||
-        firebaseAuth.currentUser ||
-        null
-      );
-    } catch (error) {
-      console.error(
-        "Firebase user olishda xatolik:",
-        error
-      );
-
-      return contextUser || null;
-    }
-  }, [contextUser]);
-
-  const currentUser =
-    getLoggedInUser();
+  const [products, setProducts] = useState([]);
+  const [selectedTable, setSelectedTable] = useState(
+    tableNumber ? Number(tableNumber) : ""
+  );
+  const [cart, setCart] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
 
   // =========================================================
-  // STOL
-  // =========================================================
-
-  const initialTable =
-    searchParams.get("table") || "1";
-
-  const [tableNumber, setTableNumber] =
-    useState(initialTable);
-
-  // =========================================================
-  // MAVJUD BUYURTMA
-  // =========================================================
-
-  const [existingOrderId, setExistingOrderId] =
-    useState(null);
-
-  const [existingOrderItems, setExistingOrderItems] =
-    useState([]);
-
-  const [existingKitchenItems, setExistingKitchenItems] =
-    useState([]);
-
-  const [existingOrderTotal, setExistingOrderTotal] =
-    useState(0);
-
-  // =========================================================
-  // MENU
-  // =========================================================
-
-  const [categories, setCategories] =
-    useState(["Barchasi"]);
-
-  const [selectedCategory, setSelectedCategory] =
-    useState("Barchasi");
-
-  const [searchQuery, setSearchQuery] =
-    useState("");
-
-  const [menuItems, setMenuItems] =
-    useState([]);
-
-  // =========================================================
-  // CART
-  // =========================================================
-
-  const [cart, setCart] =
-    useState([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [submitting, setSubmitting] =
-    useState(false);
-
-  const [isCartModalOpen, setIsCartModalOpen] =
-    useState(false);
-
-  // =========================================================
-  // SOUND
-  // =========================================================
-
-  const [isSoundOn, setIsSoundOn] =
-    useState(true);
-
-  const [readyNotification, setReadyNotification] =
-    useState(null);
-
-  const audioContextRef =
-    useRef(null);
-
-  const audioUnlockedRef =
-    useRef(false);
-
-  const readyNotificationTimerRef =
-    useRef(null);
-
-  const readyNotificationQueueRef =
-    useRef([]);
-
-  const readyNotifiedIdsRef =
-    useRef(new Set());
-
-  // =========================================================
-  // AUDIO
-  // =========================================================
-
-  const getAudioContext = useCallback(() => {
-    try {
-      if (!audioContextRef.current) {
-        const AudioCtx =
-          window.AudioContext ||
-          window.webkitAudioContext;
-
-        if (!AudioCtx) {
-          return null;
-        }
-
-        audioContextRef.current =
-          new AudioCtx();
-      }
-
-      return audioContextRef.current;
-    } catch (error) {
-      console.error(
-        "AudioContext xatosi:",
-        error
-      );
-
-      return null;
-    }
-  }, []);
-
-  const unlockAudio = useCallback(async () => {
-    try {
-      const ctx =
-        getAudioContext();
-
-      if (!ctx) return;
-
-      if (
-        ctx.state === "suspended"
-      ) {
-        await ctx.resume();
-      }
-
-      audioUnlockedRef.current = true;
-    } catch (error) {
-      console.error(
-        "Audio unlock xatosi:",
-        error
-      );
-    }
-  }, [getAudioContext]);
-
-  const playReadySound = useCallback(async () => {
-    if (!isSoundOn) return;
-
-    try {
-      const ctx =
-        getAudioContext();
-
-      if (!ctx) return;
-
-      if (
-        ctx.state === "suspended"
-      ) {
-        await ctx.resume();
-      }
-
-      audioUnlockedRef.current = true;
-
-      const now =
-        ctx.currentTime;
-
-      const beep = (
-        delay,
-        frequency,
-        duration
-      ) => {
-        const oscillator =
-          ctx.createOscillator();
-
-        const gain =
-          ctx.createGain();
-
-        oscillator.type =
-          "sine";
-
-        oscillator.frequency.setValueAtTime(
-          frequency,
-          now + delay
-        );
-
-        gain.gain.setValueAtTime(
-          0.0001,
-          now + delay
-        );
-
-        gain.gain.exponentialRampToValueAtTime(
-          0.7,
-          now + delay + 0.03
-        );
-
-        gain.gain.exponentialRampToValueAtTime(
-          0.0001,
-          now + delay + duration
-        );
-
-        oscillator.connect(gain);
-        gain.connect(ctx.destination);
-
-        oscillator.start(
-          now + delay
-        );
-
-        oscillator.stop(
-          now +
-            delay +
-            duration +
-            0.05
-        );
-      };
-
-      beep(0, 880, 0.25);
-      beep(0.35, 1100, 0.25);
-      beep(0.7, 880, 0.35);
-    } catch (error) {
-      console.error(
-        "Ovoz chiqarishda xatolik:",
-        error
-      );
-    }
-  }, [
-    getAudioContext,
-    isSoundOn,
-  ]);
-
-  useEffect(() => {
-    const handleInteraction = () => {
-      if (
-        !audioUnlockedRef.current
-      ) {
-        unlockAudio();
-      }
-    };
-
-    window.addEventListener(
-      "click",
-      handleInteraction
-    );
-
-    window.addEventListener(
-      "touchstart",
-      handleInteraction
-    );
-
-    window.addEventListener(
-      "keydown",
-      handleInteraction
-    );
-
-    return () => {
-      window.removeEventListener(
-        "click",
-        handleInteraction
-      );
-
-      window.removeEventListener(
-        "touchstart",
-        handleInteraction
-      );
-
-      window.removeEventListener(
-        "keydown",
-        handleInteraction
-      );
-    };
-  }, [unlockAudio]);
-
-  // =========================================================
-  // READY NOTIFICATION
-  // =========================================================
-
-  const showNextReadyNotification =
-    useCallback(async () => {
-      if (
-        readyNotificationQueueRef.current
-          .length === 0
-      ) {
-        return;
-      }
-
-      const next =
-        readyNotificationQueueRef.current.shift();
-
-      if (!next) return;
-
-      setReadyNotification(next);
-
-      await playReadySound();
-
-      if (
-        readyNotificationTimerRef.current
-      ) {
-        clearTimeout(
-          readyNotificationTimerRef.current
-        );
-      }
-
-      readyNotificationTimerRef.current =
-        setTimeout(() => {
-          setReadyNotification(null);
-        }, 4000);
-    }, [playReadySound]);
-
-  // =========================================================
-  // READY ORDER LISTENER
+  // PRODUCTLARNI YUKLASH
   // =========================================================
 
   useEffect(() => {
-    const uid =
-      currentUser?.uid;
+    const loadData = async () => {
+      try {
+        setLoading(true);
 
-    if (!cafeId || !uid) {
-      return;
-    }
-
-    const ordersRef =
-      collection(db, "orders");
-
-    const q = query(
-      ordersRef,
-      where(
-        "cafeId",
-        "==",
-        cafeId
-      ),
-      where(
-        "waiterId",
-        "==",
-        uid
-      )
-    );
-
-    let firstSnapshot = true;
-
-    const unsubscribe =
-      onSnapshot(
-        q,
-        (snapshot) => {
-          if (firstSnapshot) {
-            firstSnapshot = false;
-
-            snapshot.docs.forEach(
-              (orderDoc) => {
-                const data =
-                  orderDoc.data();
-
-                if (
-                  data.kitchenStatus ===
-                  "ready"
-                ) {
-                  readyNotifiedIdsRef.current.add(
-                    orderDoc.id
-                  );
-                }
-              }
-            );
-
-            return;
-          }
-
-          snapshot.docChanges().forEach(
-            (change) => {
-              if (
-                change.type !== "modified" &&
-                change.type !== "added"
-              ) {
-                return;
-              }
-
-              const orderData =
-                change.doc.data();
-
-              const orderId =
-                change.doc.id;
-
-              if (
-                orderData.waiterId !== uid
-              ) {
-                return;
-              }
-
-              if (
-                orderData.cafeId !== cafeId
-              ) {
-                return;
-              }
-
-              if (
-                orderData.kitchenStatus !==
-                "ready"
-              ) {
-                return;
-              }
-
-              if (
-                readyNotifiedIdsRef.current.has(
-                  orderId
-                )
-              ) {
-                return;
-              }
-
-              readyNotifiedIdsRef.current.add(
-                orderId
-              );
-
-              readyNotificationQueueRef.current.push(
-                {
-                  id: orderId,
-                  tableNumber:
-                    orderData.tableNumber ?? "?",
-                }
-              );
-
-              showNextReadyNotification();
-            }
-          );
-        },
-        (error) => {
-          console.error(
-            "Ready listener xatosi:",
-            error
-          );
-        }
-      );
-
-    return () => {
-      unsubscribe();
-
-      if (
-        readyNotificationTimerRef.current
-      ) {
-        clearTimeout(
-          readyNotificationTimerRef.current
+        const productsSnapshot = await getDocs(
+          collection(db, "products")
         );
-      }
-    };
-  }, [
-    cafeId,
-    currentUser?.uid,
-    showNextReadyNotification,
-  ]);
 
-  useEffect(() => {
-    if (
-      !readyNotification &&
-      readyNotificationQueueRef.current
-        .length > 0
-    ) {
-      showNextReadyNotification();
-    }
-  }, [
-    readyNotification,
-    showNextReadyNotification,
-  ]);
+        const productData = productsSnapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        }));
 
-  // =========================================================
-  // SHU OFITSIANTNING AKTIV ORDERINI TOPISH
-  // =========================================================
+        setProducts(productData);
 
-  useEffect(() => {
-    const uid =
-      currentUser?.uid;
-
-    if (
-      !tableNumber ||
-      !cafeId ||
-      !uid
-    ) {
-      return;
-    }
-
-    const fetchActiveOrderForTable =
-      async () => {
-        try {
-          const q = query(
-            collection(db, "orders"),
-            where(
-              "cafeId",
-              "==",
-              cafeId
-            ),
-            where(
-              "tableNumber",
-              "==",
-              Number(tableNumber)
-            ),
-            where(
-              "paymentStatus",
-              "==",
-              "unpaid"
-            ),
-            where(
-              "waiterId",
-              "==",
-              uid
-            )
+        // Agar mavjud order ochilgan bo'lsa
+        if (orderId) {
+          const orderSnapshot = await getDoc(
+            doc(db, "orders", orderId)
           );
 
-          const querySnapshot =
-            await getDocs(q);
+          if (orderSnapshot.exists()) {
+            const orderData = orderSnapshot.data();
 
-          if (
-            !querySnapshot.empty
-          ) {
-            const activeOrderDoc =
-              querySnapshot.docs[0];
-
-            const orderData =
-              activeOrderDoc.data();
-
-            if (
-              orderData.waiterId !== uid
-            ) {
-              setExistingOrderId(null);
-              setExistingOrderItems([]);
-              setExistingKitchenItems([]);
-              setExistingOrderTotal(0);
-              return;
-            }
-
-            setExistingOrderId(
-              activeOrderDoc.id
-            );
-
-            setExistingOrderItems(
-              Array.isArray(orderData.items)
-                ? orderData.items
-                : []
-            );
-
-            setExistingKitchenItems(
-              Array.isArray(
-                orderData.kitchenItems
-              )
-                ? orderData.kitchenItems
-                : []
-            );
-
-            setExistingOrderTotal(
+            setSelectedTable(
               Number(
-                orderData.totalPrice || 0
+                orderData.tableNumber ??
+                  orderData.table ??
+                  orderData.tableNo ??
+                  tableNumber
               )
             );
-          } else {
-            setExistingOrderId(null);
-            setExistingOrderItems([]);
-            setExistingKitchenItems([]);
-            setExistingOrderTotal(0);
+
+            const oldItems =
+              Array.isArray(orderData.kitchenItems)
+                ? orderData.kitchenItems
+                : Array.isArray(orderData.items)
+                ? orderData.items
+                : Array.isArray(orderData.products)
+                ? orderData.products
+                : [];
+
+            setCart(oldItems);
           }
-        } catch (error) {
-          console.error(
-            "Stol buyurtmasini yuklash:",
-            error
-          );
         }
-      };
+      } catch (error) {
+        console.error("Load error:", error);
+        toast.error("Ma'lumotlarni yuklashda xatolik!");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    fetchActiveOrderForTable();
-  }, [
-    tableNumber,
-    cafeId,
-    currentUser?.uid,
-  ]);
-
-  // =========================================================
-  // EXISTING ORDER REALTIME
-  // =========================================================
-
-  useEffect(() => {
-    const uid =
-      currentUser?.uid;
-
-    if (
-      !existingOrderId ||
-      !uid
-    ) {
-      return;
-    }
-
-    const orderRef =
-      doc(
-        db,
-        "orders",
-        existingOrderId
-      );
-
-    const unsubscribe =
-      onSnapshot(
-        orderRef,
-        (snapshot) => {
-          if (!snapshot.exists()) {
-            setExistingOrderId(null);
-            setExistingOrderItems([]);
-            setExistingKitchenItems([]);
-            setExistingOrderTotal(0);
-            return;
-          }
-
-          const data =
-            snapshot.data();
-
-          if (
-            data.waiterId !== uid
-          ) {
-            setExistingOrderId(null);
-            setExistingOrderItems([]);
-            setExistingKitchenItems([]);
-            setExistingOrderTotal(0);
-            return;
-          }
-
-          setExistingOrderItems(
-            Array.isArray(data.items)
-              ? data.items
-              : []
-          );
-
-          setExistingKitchenItems(
-            Array.isArray(
-              data.kitchenItems
-            )
-              ? data.kitchenItems
-              : []
-          );
-
-          setExistingOrderTotal(
-            Number(
-              data.totalPrice || 0
-            )
-          );
-        },
-        (error) => {
-          console.error(
-            "Order realtime xatosi:",
-            error
-          );
-        }
-      );
-
-    return () => unsubscribe();
-  }, [
-    existingOrderId,
-    currentUser?.uid,
-  ]);
+    loadData();
+  }, [orderId, tableNumber]);
 
   // =========================================================
-  // MENU
+  // FILTER PRODUCT
   // =========================================================
 
-  useEffect(() => {
-    const menuRef =
-      collection(db, "menu");
+  const filteredProducts = useMemo(() => {
+    const value = search.trim().toLowerCase();
 
-    const unsubscribe =
-      onSnapshot(
-        menuRef,
-        (snapshot) => {
-          const items =
-            snapshot.docs.map(
-              (menuDoc) => ({
-                id: menuDoc.id,
-                ...menuDoc.data(),
-              })
-            );
+    if (!value) return products;
 
-          let finalItems =
-            items;
+    return products.filter((product) => {
+      const name = String(
+        product.name ||
+          product.title ||
+          product.productName ||
+          ""
+      ).toLowerCase();
 
-          if (cafeId) {
-            const cafeFiltered =
-              items.filter(
-                (item) =>
-                  item.cafeId === cafeId
-              );
-
-            if (
-              cafeFiltered.length > 0
-            ) {
-              finalItems =
-                cafeFiltered;
-            }
-          }
-
-          setMenuItems(finalItems);
-
-          const rawCats =
-            finalItems
-              .map(
-                (item) => item.category
-              )
-              .filter(Boolean);
-
-          setCategories([
-            "Barchasi",
-            ...Array.from(
-              new Set(rawCats)
-            ),
-          ]);
-
-          setLoading(false);
-        },
-        (error) => {
-          console.error(
-            "Menyuni yuklash:",
-            error
-          );
-
-          toast.error(
-            "Menyuni yuklashda xatolik!"
-          );
-
-          setLoading(false);
-        }
-      );
-
-    return () => unsubscribe();
-  }, [cafeId]);
+      return name.includes(value);
+    });
+  }, [products, search]);
 
   // =========================================================
-  // CART
+  // PRODUCT NAME
   // =========================================================
 
-  const addToCart = (item) => {
+  const getProductName = (product) => {
+    return (
+      product.name ||
+      product.title ||
+      product.productName ||
+      "Nomsiz mahsulot"
+    );
+  };
+
+  // =========================================================
+  // PRODUCT PRICE
+  // =========================================================
+
+  const getProductPrice = (product) => {
+    return Number(
+      product.price ||
+        product.sellPrice ||
+        product.salePrice ||
+        0
+    );
+  };
+
+  // =========================================================
+  // CARTGA QO'SHISH
+  // =========================================================
+
+  const addToCart = (product) => {
     setCart((prev) => {
-      const existing =
-        prev.find(
-          (i) => i.id === item.id
-        );
+      const existingIndex = prev.findIndex(
+        (item) =>
+          String(item.productId || item.id) === String(product.id)
+      );
 
-      if (existing) {
-        return prev.map((i) =>
-          i.id === item.id
+      if (existingIndex !== -1) {
+        return prev.map((item, index) =>
+          index === existingIndex
             ? {
-                ...i,
-                quantity:
-                  i.quantity + 1,
+                ...item,
+                quantity: Number(item.quantity || 1) + 1,
               }
-            : i
+            : item
         );
       }
 
       return [
         ...prev,
         {
-          id: item.id,
-          name: item.name || "",
-          price: Number(item.price || 0),
-          category:
-            item.category || "",
-          imageUrl:
-            item.imageUrl ||
-            item.image ||
-            "",
+          id: `${product.id}-${Date.now()}`,
+          productId: product.id,
+          name: getProductName(product),
+          price: getProductPrice(product),
           quantity: 1,
-          note: "",
+
+          // Oshxona/ofitsiant statuslari
+          readyForWaiter: false,
+          isReady: false,
+          waiterTaken: false,
+          isDelivered: false,
+
+          // Qo'shimcha ma'lumotlar
+          category: product.category || "",
+          image: product.image || product.imageUrl || "",
         },
       ];
     });
   };
 
-  const updateQuantity = (
-    id,
-    delta
-  ) => {
+  // =========================================================
+  // QUANTITY O'ZGARTIRISH
+  // =========================================================
+
+  const increaseQuantity = (index) => {
     setCart((prev) =>
-      prev
-        .map((item) => {
-          if (item.id !== id) {
-            return item;
-          }
-
-          const newQty =
-            item.quantity + delta;
-
-          if (newQty <= 0) {
-            return null;
-          }
-
-          return {
-            ...item,
-            quantity: newQty,
-          };
-        })
-        .filter(Boolean)
-    );
-  };
-
-  const updateNote = (
-    id,
-    noteText
-  ) => {
-    setCart((prev) =>
-      prev.map((item) =>
-        item.id === id
+      prev.map((item, itemIndex) =>
+        itemIndex === index
           ? {
               ...item,
-              note: noteText,
+              quantity: Number(item.quantity || 1) + 1,
             }
           : item
       )
     );
   };
 
-  const getItemQuantityInCart =
-    (id) => {
-      const found =
-        cart.find(
-          (item) => item.id === id
-        );
-
-      return found
-        ? found.quantity
-        : 0;
-    };
-
-  const totalCount =
-    cart.reduce(
-      (sum, item) =>
-        sum + item.quantity,
-      0
+  const decreaseQuantity = (index) => {
+    setCart((prev) =>
+      prev
+        .map((item, itemIndex) =>
+          itemIndex === index
+            ? {
+                ...item,
+                quantity: Number(item.quantity || 1) - 1,
+              }
+            : item
+        )
+        .filter((item) => Number(item.quantity) > 0)
     );
+  };
 
-  const totalPrice =
-    cart.reduce(
-      (sum, item) =>
+  // =========================================================
+  // ITEMNI O'CHIRISH
+  // =========================================================
+
+  const removeFromCart = (index) => {
+    setCart((prev) =>
+      prev.filter((_, itemIndex) => itemIndex !== index)
+    );
+  };
+
+  // =========================================================
+  // JAMI
+  // =========================================================
+
+  const totalPrice = useMemo(() => {
+    return cart.reduce((sum, item) => {
+      return (
         sum +
         Number(item.price || 0) *
-          Number(item.quantity || 0),
+          Number(item.quantity || 1)
+      );
+    }, 0);
+  }, [cart]);
+
+  const totalCount = useMemo(() => {
+    return cart.reduce(
+      (sum, item) =>
+        sum + Number(item.quantity || 1),
       0
     );
+  }, [cart]);
 
   // =========================================================
-  // ICHIMLIK
+  // BUYURTMANI SAQLASH
   // =========================================================
 
-  const isDrinkCategory =
-    (category) => {
-      const cat =
-        String(category || "")
-          .trim()
-          .toLowerCase();
+  const handleSaveOrder = async () => {
+    if (!selectedTable) {
+      toast.warning("Stol raqamini tanlang!");
+      return;
+    }
 
-      return (
-        cat.includes("ichimlik") ||
-        cat.includes("drink") ||
-        cat.includes("napitok")
-      );
-    };
+    if (cart.length === 0) {
+      toast.warning("Kamida bitta mahsulot qo'shing!");
+      return;
+    }
 
-  // =========================================================
-  // TAOM TAYYORMI?
-  // =========================================================
+    try {
+      setSaving(true);
 
-  const isItemReadyByKitchen =
-    (item) => {
-      if (!item) {
-        return false;
-      }
+      const cleanItems = cart.map((item) => ({
+        ...item,
+        quantity: Number(item.quantity || 1),
+        price: Number(item.price || 0),
+      }));
 
-      if (
-        isDrinkCategory(
-          item.category
-        )
-      ) {
-        return true;
-      }
+      const orderData = {
+        tableNumber: Number(selectedTable),
 
-      const kitchenItem =
-        existingKitchenItems.find(
-          (kitchenItem) =>
-            kitchenItem.id === item.id
-        );
+        kitchenItems: cleanItems,
 
-      if (kitchenItem) {
-        return (
-          kitchenItem.isReady === true
-        );
-      }
+        totalPrice: Number(totalPrice),
+        total: Number(totalPrice),
 
-      const sameNameItem =
-        existingKitchenItems.find(
-          (kitchenItem) =>
-            String(
-              kitchenItem.name || ""
-            ).trim() ===
-            String(
-              item.name || ""
-            ).trim()
-        );
+        status: "active",
+        kitchenStatus: "pending",
+        paymentStatus: "pending",
+        isPaid: false,
 
-      if (sameNameItem) {
-        return (
-          sameNameItem.isReady === true
-        );
-      }
+        updatedAt: serverTimestamp(),
+      };
 
-      return false;
-    };
+      // =====================================================
+      // MAVJUD ORDERGA TAOM QO'SHISH
+      // =====================================================
 
-  // =========================================================
-  // TAOMNI YETKAZISH
-  // =========================================================
-
-  const handleItemDelivered =
-    async (itemIndex) => {
-      const uid =
-        getLoggedInUser()?.uid;
-
-      if (!existingOrderId) {
-        toast.error(
-          "Buyurtma topilmadi!"
-        );
-        return;
-      }
-
-      if (!uid) {
-        toast.error(
-          "Ofitsiant aniqlanmadi!"
-        );
-        return;
-      }
-
-      try {
-        const orderRef =
-          doc(
-            db,
-            "orders",
-            existingOrderId
-          );
-
-        const orderSnap =
-          await getDoc(orderRef);
-
-        if (!orderSnap.exists()) {
-          toast.error(
-            "Buyurtma topilmadi!"
-          );
-          return;
-        }
-
-        const orderData =
-          orderSnap.data();
-
-        if (
-          orderData.waiterId !== uid
-        ) {
-          toast.error(
-            "Bu buyurtma boshqa ofitsiantga tegishli!"
-          );
-          return;
-        }
-
-        const items =
-          Array.isArray(
-            orderData.items
-          )
-            ? [...orderData.items]
-            : [];
-
-        if (!items[itemIndex]) {
-          toast.error(
-            "Taom topilmadi!"
-          );
-          return;
-        }
-
-        const selectedItem =
-          items[itemIndex];
-
-        const kitchenItems =
-          Array.isArray(
-            orderData.kitchenItems
-          )
-            ? orderData.kitchenItems
-            : [];
-
-        let kitchenItem =
-          kitchenItems.find(
-            (item) =>
-              item.id === selectedItem.id
-          );
-
-        if (!kitchenItem) {
-          kitchenItem =
-            kitchenItems.find(
-              (item) =>
-                String(
-                  item.name || ""
-                ).trim() ===
-                String(
-                  selectedItem.name || ""
-                ).trim()
-            );
-        }
-
-        const isDrink =
-          isDrinkCategory(
-            selectedItem.category
-          );
-
-        if (
-          !isDrink &&
-          (
-            !kitchenItem ||
-            kitchenItem.isReady !== true
-          )
-        ) {
-          toast.warning(
-            "⚠️ Oshpaz hali bu taomni tayyor deb belgilamagan!"
-          );
-          return;
-        }
-
-        if (
-          selectedItem.delivered === true
-        ) {
-          return;
-        }
-
-        items[itemIndex] = {
-          ...selectedItem,
-          delivered: true,
-          deliveredAt:
-            new Date().toISOString(),
-          deliveredBy: uid,
-        };
-
-        const allDelivered =
-          items.length > 0 &&
-          items.every(
-            (item) =>
-              item.delivered === true
-          );
-
+      if (orderId) {
         await updateDoc(
-          orderRef,
-          {
-            items,
-            deliveryStatus:
-              allDelivered
-                ? "delivered"
-                : "partially_delivered",
-            updatedAt:
-              serverTimestamp(),
-          }
+          doc(db, "orders", orderId),
+          orderData
         );
 
         toast.success(
-          `✓ ${selectedItem.name} mijozga yetkazildi`
+          "✅ Buyurtma muvaffaqiyatli yangilandi!"
         );
-      } catch (error) {
-        console.error(
-          "Taom yetkazish xatosi:",
-          error
-        );
+      } else {
+        // ===================================================
+        // YANGI ORDER
+        // ===================================================
 
-        toast.error(
-          "Taomni yetkazishda xatolik!"
+        await addDoc(collection(db, "orders"), {
+          ...orderData,
+          createdAt: serverTimestamp(),
+        });
+
+        toast.success(
+          "✅ Buyurtma muvaffaqiyatli oshxonaga yuborildi!"
         );
       }
-    };
+
+      navigate("/waiter/tables");
+    } catch (error) {
+      console.error("Save order error:", error);
+      toast.error(
+        "❌ Buyurtmani saqlashda xatolik yuz berdi!"
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // =========================================================
-  // HAMMA YETKAZILGANMI?
+  // LOADING
   // =========================================================
 
-  const allExistingItemsDelivered =
-    existingOrderItems.length > 0 &&
-    existingOrderItems.every(
-      (item) =>
-        item.delivered === true
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f8f5ef] flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl mb-3">🍲</div>
+
+          <p className="font-bold text-gray-500">
+            Yuklanmoqda...
+          </p>
+        </div>
+      </div>
     );
-
-  // =========================================================
-  // STOLNI YOPISH
-  // =========================================================
-
-  const handleCloseTable =
-    async () => {
-      const uid =
-        getLoggedInUser()?.uid;
-
-      if (!existingOrderId) {
-        toast.error(
-          "Yopiladigan buyurtma yo'q!"
-        );
-        return;
-      }
-
-      if (!uid) {
-        toast.error(
-          "Ofitsiant aniqlanmadi!"
-        );
-        return;
-      }
-
-      if (
-        !allExistingItemsDelivered
-      ) {
-        toast.warning(
-          "Avval barcha taomlarni mijozga yetkazing!"
-        );
-        return;
-      }
-
-      try {
-        setSubmitting(true);
-
-        const orderRef =
-          doc(
-            db,
-            "orders",
-            existingOrderId
-          );
-
-        const orderSnap =
-          await getDoc(orderRef);
-
-        if (!orderSnap.exists()) {
-          toast.error(
-            "Buyurtma topilmadi!"
-          );
-          return;
-        }
-
-        const orderData =
-          orderSnap.data();
-
-        if (
-          orderData.waiterId !== uid
-        ) {
-          toast.error(
-            "Bu buyurtma sizga tegishli emas!"
-          );
-          return;
-        }
-
-        await updateDoc(
-          orderRef,
-          {
-            paymentStatus: "paid",
-            deliveryStatus: "delivered",
-            status: "completed",
-            kitchenStatus: "completed",
-            closedAt:
-              serverTimestamp(),
-            closedBy: uid,
-            updatedAt:
-              serverTimestamp(),
-          }
-        );
-
-        toast.success(
-          "✓ Mijozga yetkazildi. Stol yopildi!"
-        );
-
-        setExistingOrderId(null);
-        setExistingOrderItems([]);
-        setExistingKitchenItems([]);
-        setExistingOrderTotal(0);
-        setCart([]);
-        setIsCartModalOpen(false);
-
-        navigate("/waiter/tables");
-      } catch (error) {
-        console.error(
-          "Stolni yopish xatosi:",
-          error
-        );
-
-        toast.error(
-          "Stolni yopishda xatolik!"
-        );
-      } finally {
-        setSubmitting(false);
-      }
-    };
-
-  // =========================================================
-  // BUYURTMA YUBORISH
-  // =========================================================
-
-  const handleSubmitOrder =
-    async () => {
-      // MUHIM: contextUser null bo'lsa ham
-      // Firebase getAuth().currentUser olinadi
-      const loggedUser =
-        getLoggedInUser();
-
-      const uid =
-        loggedUser?.uid;
-
-      console.log(
-        "BUYURTMA USER:",
-        loggedUser
-      );
-
-      console.log(
-        "BUYURTMA UID:",
-        uid
-      );
-
-      console.log(
-        "CAFE ID:",
-        cafeId
-      );
-
-      if (!uid) {
-        toast.error(
-          "Ofitsiant aniqlanmadi. Login holati topilmadi!"
-        );
-        return;
-      }
-
-      if (!cafeId) {
-        toast.error(
-          "Cafe aniqlanmadi!"
-        );
-        return;
-      }
-
-      if (!tableNumber) {
-        toast.error(
-          "Iltimos, stol raqamini kiriting!"
-        );
-        return;
-      }
-
-      if (cart.length === 0) {
-        toast.error(
-          "Savat bo'sh! Taom tanlang."
-        );
-        return;
-      }
-
-      if (
-        submitting
-      ) {
-        return;
-      }
-
-      setSubmitting(true);
-
-      try {
-        // =====================================================
-        // AVVALGI ITEMLAR
-        // =====================================================
-
-        let finalAllItems =
-          [...existingOrderItems];
-
-        // =====================================================
-        // YANGI SAVAT ITEMLARINI QO'SHISH
-        // =====================================================
-
-        cart.forEach(
-          (cartItem) => {
-            const index =
-              finalAllItems.findIndex(
-                (item) =>
-                  item.id === cartItem.id &&
-                  item.delivered !== true
-              );
-
-            if (index > -1) {
-              finalAllItems[index] = {
-                ...finalAllItems[index],
-
-                quantity:
-                  Number(
-                    finalAllItems[index]
-                      .quantity || 0
-                  ) +
-                  Number(
-                    cartItem.quantity || 0
-                  ),
-
-                note:
-                  cartItem.note
-                    ? finalAllItems[index]
-                        .note
-                      ? `${finalAllItems[index].note}, ${cartItem.note}`
-                      : cartItem.note
-                    : (
-                      finalAllItems[index]
-                        .note || ""
-                    ),
-
-                delivered: false,
-              };
-            } else {
-              finalAllItems.push({
-                id: cartItem.id,
-                name:
-                  cartItem.name || "",
-                price:
-                  Number(
-                    cartItem.price || 0
-                  ),
-                quantity:
-                  Number(
-                    cartItem.quantity || 1
-                  ),
-                category:
-                  cartItem.category || "",
-                imageUrl:
-                  cartItem.imageUrl || "",
-                note:
-                  cartItem.note || "",
-                delivered: false,
-              });
-            }
-          }
-        );
-
-        // =====================================================
-        // JAMI NARX
-        // =====================================================
-
-        const finalTotalPrice =
-          finalAllItems.reduce(
-            (sum, item) =>
-              sum +
-              Number(
-                item.price || 0
-              ) *
-                Number(
-                  item.quantity || 0
-                ),
-            0
-          );
-
-        // =====================================================
-        // OSHXONA VA ICHIMLIKLAR
-        // =====================================================
-
-        const kitchenItems =
-          finalAllItems.filter(
-            (item) =>
-              !isDrinkCategory(
-                item.category
-              )
-          );
-
-        const waiterItems =
-          finalAllItems.filter(
-            (item) =>
-              isDrinkCategory(
-                item.category
-              )
-          );
-
-        // =====================================================
-        // MAVJUD ORDERNI YANGILASH
-        // =====================================================
-
-        if (existingOrderId) {
-          const orderRef =
-            doc(
-              db,
-              "orders",
-              existingOrderId
-            );
-
-          const orderSnap =
-            await getDoc(orderRef);
-
-          if (!orderSnap.exists()) {
-            toast.error(
-              "Buyurtma topilmadi!"
-            );
-            return;
-          }
-
-          const oldOrder =
-            orderSnap.data();
-
-          if (
-            oldOrder.waiterId !== uid
-          ) {
-            toast.error(
-              "Bu buyurtma boshqa ofitsiantga tegishli!"
-            );
-            return;
-          }
-
-          const oldKitchenItems =
-            Array.isArray(
-              oldOrder.kitchenItems
-            )
-              ? oldOrder.kitchenItems
-              : [];
-
-          const newKitchenItems =
-            kitchenItems.map(
-              (item) => {
-                const oldKitchenItem =
-                  oldKitchenItems.find(
-                    (oldItem) =>
-                      oldItem.id === item.id
-                  );
-
-                // Agar oldingi taom tayyor bo'lsa,
-                // tayyor holati saqlanadi
-                if (
-                  oldKitchenItem?.isReady === true
-                ) {
-                  return {
-                    ...item,
-                    isReady: true,
-                  };
-                }
-
-                return {
-                  ...item,
-                  isReady: false,
-                };
-              }
-            );
-
-          const kitchenStatus =
-            newKitchenItems.length === 0
-              ? "ready"
-              : newKitchenItems.every(
-                  (item) =>
-                    item.isReady === true
-                )
-              ? "ready"
-              : "pending";
-
-          await updateDoc(
-            orderRef,
-            {
-              items: finalAllItems,
-
-              kitchenItems:
-                newKitchenItems,
-
-              waiterItems:
-                waiterItems,
-
-              totalPrice:
-                finalTotalPrice,
-
-              // MUHIM
-              waiterId: uid,
-
-              waiterName:
-                loggedUser.displayName ||
-                loggedUser.email ||
-                "",
-
-              cafeId: cafeId,
-
-              tableNumber:
-                Number(tableNumber),
-
-              paymentStatus:
-                "unpaid",
-
-              kitchenStatus:
-                kitchenStatus,
-
-              status: "active",
-
-              updatedAt:
-                serverTimestamp(),
-            }
-          );
-
-          setExistingOrderItems(
-            finalAllItems
-          );
-
-          setExistingKitchenItems(
-            newKitchenItems
-          );
-
-          setExistingOrderTotal(
-            finalTotalPrice
-          );
-
-          toast.success(
-            "✓ Buyurtma muvaffaqiyatli yangilandi!"
-          );
-        } else {
-          // ===================================================
-          // YANGI ORDER
-          // ===================================================
-
-          const newKitchenItems =
-            kitchenItems.map(
-              (item) => ({
-                ...item,
-                isReady: false,
-              })
-            );
-
-          const kitchenStatus =
-            newKitchenItems.length === 0
-              ? "ready"
-              : "pending";
-
-          const newOrderRef =
-            await addDoc(
-              collection(db, "orders"),
-              {
-                cafeId: cafeId,
-
-                tableNumber:
-                  Number(tableNumber),
-
-                // ENG MUHIM
-                waiterId: uid,
-
-                waiterName:
-                  loggedUser.displayName ||
-                  loggedUser.email ||
-                  "",
-
-                items:
-                  finalAllItems,
-
-                kitchenItems:
-                  newKitchenItems,
-
-                waiterItems:
-                  waiterItems,
-
-                totalPrice:
-                  finalTotalPrice,
-
-                status:
-                  "active",
-
-                paymentStatus:
-                  "unpaid",
-
-                deliveryStatus:
-                  "pending",
-
-                kitchenStatus:
-                  kitchenStatus,
-
-                createdAt:
-                  serverTimestamp(),
-
-                updatedAt:
-                  serverTimestamp(),
-              }
-            );
-
-          console.log(
-            "YANGI ORDER ID:",
-            newOrderRef.id
-          );
-
-          setExistingOrderId(
-            newOrderRef.id
-          );
-
-          setExistingOrderItems(
-            finalAllItems
-          );
-
-          setExistingKitchenItems(
-            newKitchenItems
-          );
-
-          setExistingOrderTotal(
-            finalTotalPrice
-          );
-
-          toast.success(
-            "✓ Yangi buyurtma muvaffaqiyatli yuborildi!"
-          );
-        }
-
-        // =====================================================
-        // SAVATNI TOZALASH
-        // =====================================================
-
-        setCart([]);
-        setIsCartModalOpen(false);
-      } catch (error) {
-        console.error(
-          "BUYURTMA YUBORISH XATOSI:",
-          error
-        );
-
-        // Firebase xatosini ham ko'rsatamiz
-        if (
-          error?.code ===
-          "permission-denied"
-        ) {
-          toast.error(
-            "Firestore ruxsat bermadi! Firebase Rules tekshiring."
-          );
-        } else if (
-          error?.code ===
-          "failed-precondition"
-        ) {
-          toast.error(
-            "Firestore index kerak. Console ichidagi link orqali index yarating."
-          );
-        } else {
-          toast.error(
-            error?.message ||
-              "Buyurtmani yuborishda xatolik!"
-          );
-        }
-      } finally {
-        setSubmitting(false);
-      }
-    };
-
-  // =========================================================
-  // FILTER
-  // =========================================================
-
-  const filteredMenuItems =
-    menuItems.filter((item) => {
-      const matchesCategory =
-        selectedCategory ===
-          "Barchasi" ||
-        item.category ===
-          selectedCategory;
-
-      const matchesSearch =
-        String(item.name || "")
-          .toLowerCase()
-          .includes(
-            searchQuery.toLowerCase()
-          );
-
-      return (
-        matchesCategory &&
-        matchesSearch
-      );
-    });
+  }
 
   // =========================================================
   // UI
   // =========================================================
 
   return (
-    <div className="p-4 max-w-4xl mx-auto pb-28">
-      {/* READY NOTIFICATION */}
-      {readyNotification && (
-        <div className="fixed top-4 right-4 bg-green-500 text-white p-4 rounded-lg shadow-lg z-50 flex items-center gap-3">
-          <span className="text-xl">
-            🔔
-          </span>
-
-          <div>
-            <p className="font-bold">
-              Taom Tayyor!
-            </p>
-
-            <p className="text-sm">
-              Stol №
-              {readyNotification.tableNumber}
-            </p>
-          </div>
-        </div>
-      )}
-
+    <div className="min-h-screen bg-[#f8f5ef] text-gray-800">
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-6 gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">
-            Stol №{tableNumber}
-          </h1>
 
-          <p className="text-sm text-gray-500">
-            {existingOrderId
-              ? "Mavjud buyurtma bor"
-              : "Yangi buyurtma"}
-          </p>
+      <header className="sticky top-0 z-30 bg-white border-b border-[#eee5d8] shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate("/waiter/tables")}
+              className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 font-bold cursor-pointer"
+            >
+              ←
+            </button>
 
-          {!currentUser?.uid && (
-            <p className="text-xs text-red-500 mt-1">
-              Ofitsiant yuklanmoqda...
-            </p>
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            onClick={async () => {
-              await unlockAudio();
-
-              setIsSoundOn(
-                (prev) => !prev
-              );
-            }}
-            className={`p-2 rounded-lg border text-sm ${
-              isSoundOn
-                ? "bg-green-100 text-green-700"
-                : "bg-gray-100 text-gray-500"
-            }`}
-          >
-            {isSoundOn
-              ? "🔊 Ovoz"
-              : "🔇 Ovoz"}
-          </button>
-
-          <button
-            onClick={() =>
-              navigate("/waiter/tables")
-            }
-            className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
-          >
-            Stollar
-          </button>
-        </div>
-      </div>
-
-      {/* EXISTING ORDER */}
-      {existingOrderId && (
-        <div className="mb-6 p-4 border rounded-lg bg-yellow-50 border-yellow-200">
-          <h2 className="text-lg font-bold mb-3 text-yellow-800">
-            Aktiv Buyurtma
-            {" "}
-            (Jami:{" "}
-            {existingOrderTotal.toLocaleString()}
-            {" "}
-            so'm)
-          </h2>
-
-          <div className="space-y-2 mb-4">
-            {existingOrderItems.map(
-              (item, idx) => {
-                const isReady =
-                  isItemReadyByKitchen(
-                    item
-                  );
-
-                return (
-                  <div
-                    key={`${item.id}-${idx}`}
-                    className="flex items-center justify-between gap-2 p-2 bg-white rounded border"
-                  >
-                    <div>
-                      <span className="font-semibold">
-                        {item.name}
-                      </span>
-
-                      {" x "}
-                      {item.quantity}
-
-                      {item.note && (
-                        <span className="text-xs text-gray-500 block">
-                          Eslatma:{" "}
-                          {item.note}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {item.delivered ? (
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                          ✓ Yetkazildi
-                        </span>
-                      ) : isReady ? (
-                        <button
-                          onClick={() =>
-                            handleItemDelivered(
-                              idx
-                            )
-                          }
-                          className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-                        >
-                          Mijozga berildi
-                        </button>
-                      ) : (
-                        <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">
-                          Oshxonada...
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              }
-            )}
-          </div>
-
-          <button
-            onClick={handleCloseTable}
-            disabled={
-              submitting ||
-              !allExistingItemsDelivered
-            }
-            className={`w-full py-2 rounded font-bold text-white transition ${
-              allExistingItemsDelivered
-                ? "bg-green-600 hover:bg-green-700"
-                : "bg-gray-400 cursor-not-allowed"
-            }`}
-          >
-            {submitting
-              ? "Yuklanmoqda..."
-              : "Stolni Yopish va To'lovni Yakunlash"}
-          </button>
-        </div>
-      )}
-
-      {/* SEARCH */}
-      <div className="mb-6 space-y-3">
-        <input
-          type="text"
-          placeholder="Taom qidirish..."
-          value={searchQuery}
-          onChange={(e) =>
-            setSearchQuery(
-              e.target.value
-            )
-          }
-          className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {categories.map(
-            (cat) => (
-              <button
-                key={cat}
-                onClick={() =>
-                  setSelectedCategory(
-                    cat
-                  )
-                }
-                className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition ${
-                  selectedCategory === cat
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                {cat}
-              </button>
-            )
-          )}
-        </div>
-      </div>
-
-      {/* MENU */}
-      {loading ? (
-        <div className="text-center py-10">
-          Menyu yuklanmoqda...
-        </div>
-      ) : filteredMenuItems.length === 0 ? (
-        <div className="text-center py-10 text-gray-500">
-          Taom topilmadi
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {filteredMenuItems.map(
-            (item) => {
-              const qtyInCart =
-                getItemQuantityInCart(
-                  item.id
-                );
-
-              return (
-                <div
-                  key={item.id}
-                  className="border rounded-lg p-3 flex flex-col justify-between bg-white shadow-sm hover:shadow transition"
-                >
-                  <div>
-                    {(item.imageUrl ||
-                      item.image) && (
-                      <img
-                        src={
-                          item.imageUrl ||
-                          item.image
-                        }
-                        alt={
-                          item.name || "Taom"
-                        }
-                        className="w-full h-28 object-cover rounded mb-2"
-                      />
-                    )}
-
-                    <h3 className="font-semibold text-gray-800">
-                      {item.name}
-                    </h3>
-
-                    <p className="text-sm text-gray-500 mb-2">
-                      {Number(
-                        item.price || 0
-                      ).toLocaleString()}
-                      {" "}
-                      so'm
-                    </p>
-                  </div>
-
-                  <div className="mt-2">
-                    {qtyInCart > 0 ? (
-                      <div className="flex items-center justify-between bg-blue-50 p-1 rounded">
-                        <button
-                          onClick={() =>
-                            updateQuantity(
-                              item.id,
-                              -1
-                            )
-                          }
-                          className="px-2 py-1 bg-blue-500 text-white rounded font-bold"
-                        >
-                          -
-                        </button>
-
-                        <span className="font-bold text-blue-700">
-                          {qtyInCart}
-                        </span>
-
-                        <button
-                          onClick={() =>
-                            updateQuantity(
-                              item.id,
-                              1
-                            )
-                          }
-                          className="px-2 py-1 bg-blue-500 text-white rounded font-bold"
-                        >
-                          +
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() =>
-                          addToCart(item)
-                        }
-                        className="w-full py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
-                      >
-                        Qo'shish
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            }
-          )}
-        </div>
-      )}
-
-      {/* CART FOOTER */}
-      {cart.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-lg z-40">
-          <div className="max-w-4xl mx-auto flex justify-between items-center gap-3">
             <div>
-              <p className="text-xs text-gray-500">
-                Savatda: {totalCount} taom
+              <h1 className="font-extrabold text-[#6f3518]">
+                Yangi buyurtma
+              </h1>
+
+              <p className="text-xs text-gray-400 mt-0.5">
+                {selectedTable
+                  ? `Stol № ${selectedTable}`
+                  : "Stol tanlang"}
               </p>
-
-              <p className="font-bold text-lg text-gray-800">
-                {totalPrice.toLocaleString()}
-                {" "}
-                so'm
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() =>
-                  setIsCartModalOpen(
-                    true
-                  )
-                }
-                className="px-3 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 font-medium text-sm"
-              >
-                Savat
-              </button>
-
-              <button
-                onClick={
-                  handleSubmitOrder
-                }
-                disabled={
-                  submitting ||
-                  !currentUser?.uid ||
-                  !cafeId
-                }
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold transition disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-              >
-                {submitting
-                  ? "Yuborilmoqda..."
-                  : "Buyurtma berish"}
-              </button>
             </div>
           </div>
+
+          <div className="hidden sm:block text-right">
+            <p className="text-xs text-gray-400">
+              Jami
+            </p>
+
+            <p className="font-black text-[#3b2418]">
+              {totalPrice.toLocaleString()} so'm
+            </p>
+          </div>
         </div>
-      )}
+      </header>
 
-      {/* CART MODAL */}
-      {isCartModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 max-h-[80vh] flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">
-                Savat
-              </h2>
+      <main className="max-w-7xl mx-auto px-4 py-5">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5">
+          {/* ================================================= */}
+          {/* PRODUCTLAR */}
+          {/* ================================================= */}
 
-              <button
-                onClick={() =>
-                  setIsCartModalOpen(
-                    false
-                  )
-                }
-                className="text-gray-500 hover:text-gray-700 font-bold text-xl"
-              >
-                ✕
-              </button>
-            </div>
+          <section>
+            <div className="bg-white rounded-2xl border border-[#eee5d8] shadow-sm p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+                <div>
+                  <h2 className="text-xl font-extrabold text-[#3b2418]">
+                    Taomlar va ichimliklar
+                  </h2>
 
-            <div className="overflow-y-auto flex-1 space-y-4 mb-4">
-              {cart.map(
-                (item) => (
-                  <div
-                    key={item.id}
-                    className="border-b pb-3"
-                  >
-                    <div className="flex justify-between items-center gap-2 mb-1">
-                      <span className="font-semibold">
-                        {item.name}
-                      </span>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Kerakli mahsulotni tanlang
+                  </p>
+                </div>
 
-                      <span className="text-sm font-bold">
-                        {(
-                          item.price *
-                          item.quantity
-                        ).toLocaleString()}
-                        {" "}
-                        so'm
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 mt-2">
-                      <input
-                        type="text"
-                        placeholder="Eslatma..."
-                        value={item.note}
-                        onChange={(e) =>
-                          updateNote(
-                            item.id,
-                            e.target.value
-                          )
-                        }
-                        className="text-xs p-2 border rounded w-3/5"
-                      />
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() =>
-                            updateQuantity(
-                              item.id,
-                              -1
-                            )
-                          }
-                          className="px-2 py-1 bg-gray-200 rounded"
-                        >
-                          -
-                        </button>
-
-                        <span className="font-medium text-sm">
-                          {item.quantity}
-                        </span>
-
-                        <button
-                          onClick={() =>
-                            updateQuantity(
-                              item.id,
-                              1
-                            )
-                          }
-                          className="px-2 py-1 bg-gray-200 rounded"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-
-            <div className="border-t pt-3 space-y-3">
-              <div className="flex justify-between font-bold text-lg">
-                <span>
-                  Jami:
-                </span>
-
-                <span>
-                  {totalPrice.toLocaleString()}
-                  {" "}
-                  so'm
-                </span>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) =>
+                    setSearch(e.target.value)
+                  }
+                  placeholder="🔍 Qidirish..."
+                  className="w-full sm:w-56 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#d97706]"
+                />
               </div>
 
-              <button
-                onClick={
-                  handleSubmitOrder
-                }
-                disabled={
-                  submitting ||
-                  !currentUser?.uid ||
-                  !cafeId
-                }
-                className="w-full py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {submitting
-                  ? "Yuborilmoqda..."
-                  : "Tasdiqlash va Oshxonaga Yuborish"}
-              </button>
+              {filteredProducts.length === 0 ? (
+                <div className="py-16 text-center text-gray-400">
+                  <div className="text-4xl mb-3">
+                    🍽️
+                  </div>
+
+                  <p className="font-bold">
+                    Mahsulot topilmadi
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {filteredProducts.map((product) => (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() =>
+                        addToCart(product)
+                      }
+                      className="text-left border border-gray-200 rounded-2xl p-3 bg-white hover:border-[#d97706] hover:shadow-md transition active:scale-[0.98] cursor-pointer"
+                    >
+                      <div className="w-full aspect-square rounded-xl bg-[#fff7e8] flex items-center justify-center text-4xl mb-3 overflow-hidden">
+                        {product.image ||
+                        product.imageUrl ? (
+                          <img
+                            src={
+                              product.image ||
+                              product.imageUrl
+                            }
+                            alt={getProductName(product)}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          "🍲"
+                        )}
+                      </div>
+
+                      <h3 className="font-bold text-sm text-gray-800 line-clamp-2 min-h-[40px]">
+                        {getProductName(product)}
+                      </h3>
+
+                      <p className="text-[#d97706] font-black text-sm mt-2">
+                        {getProductPrice(
+                          product
+                        ).toLocaleString()}{" "}
+                        so'm
+                      </p>
+
+                      <div className="mt-3 w-full text-center bg-[#fff7e8] text-[#b45309] py-2 rounded-lg text-xs font-bold">
+                        + Qo'shish
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+          </section>
+
+          {/* ================================================= */}
+          {/* SAVAT */}
+          {/* ================================================= */}
+
+          <aside className="lg:sticky lg:top-[80px] h-fit">
+            <div className="bg-white rounded-2xl border border-[#eee5d8] shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-extrabold text-[#3b2418]">
+                    Buyurtma
+                  </h2>
+
+                  <p className="text-xs text-gray-400 mt-1">
+                    {totalCount} ta mahsulot
+                  </p>
+                </div>
+
+                <div className="w-11 h-11 rounded-xl bg-[#fff0d2] flex items-center justify-center">
+                  🛒
+                </div>
+              </div>
+
+              {/* STOL */}
+
+              <div className="p-4 border-b border-gray-100">
+                <label className="text-xs font-bold text-gray-500 block mb-2">
+                  STOL RAQAMI
+                </label>
+
+                <input
+                  type="number"
+                  min="1"
+                  value={selectedTable}
+                  onChange={(e) =>
+                    setSelectedTable(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Masalan: 3"
+                  className="w-full border-2 border-gray-200 focus:border-[#d97706] outline-none rounded-xl px-4 py-3 font-bold"
+                />
+              </div>
+
+              {/* CART ITEMS */}
+
+              <div className="p-4 max-h-[420px] overflow-y-auto">
+                {cart.length === 0 ? (
+                  <div className="py-10 text-center">
+                    <div className="text-4xl mb-3">
+                      🛒
+                    </div>
+
+                    <p className="font-bold text-gray-500">
+                      Savat bo'sh
+                    </p>
+
+                    <p className="text-xs text-gray-400 mt-1">
+                      Chap tomondan mahsulot tanlang
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {cart.map((item, index) => (
+                      <div
+                        key={
+                          item.id ||
+                          `${item.productId}-${index}`
+                        }
+                        className="border border-gray-100 bg-[#fafafa] rounded-xl p-3"
+                      >
+                        <div className="flex justify-between gap-2">
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-sm truncate">
+                              {item.name}
+                            </h3>
+
+                            <p className="text-xs text-[#d97706] font-bold mt-1">
+                              {Number(
+                                item.price || 0
+                              ).toLocaleString()}{" "}
+                              so'm
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              removeFromCart(index)
+                            }
+                            className="w-8 h-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                decreaseQuantity(index)
+                              }
+                              className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 font-bold cursor-pointer"
+                            >
+                              −
+                            </button>
+
+                            <span className="w-8 text-center font-black">
+                              {item.quantity}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                increaseQuantity(index)
+                              }
+                              className="w-8 h-8 rounded-lg bg-[#fff0d2] text-[#b45309] hover:bg-[#ffe3ad] font-bold cursor-pointer"
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          <span className="font-black text-sm">
+                            {(
+                              Number(item.price || 0) *
+                              Number(item.quantity || 1)
+                            ).toLocaleString()}{" "}
+                            so'm
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* TOTAL */}
+
+              <div className="border-t border-gray-100 p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="font-bold text-gray-500">
+                    Jami summa
+                  </span>
+
+                  <span className="text-xl font-black text-[#3b2418]">
+                    {totalPrice.toLocaleString()} so'm
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSaveOrder}
+                  disabled={
+                    saving ||
+                    cart.length === 0 ||
+                    !selectedTable
+                  }
+                  className="w-full bg-[#d97706] hover:bg-[#c56600] disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3.5 rounded-xl font-extrabold cursor-pointer transition active:scale-[0.98]"
+                >
+                  {saving
+                    ? "Saqlanmoqda..."
+                    : orderId
+                    ? "✓ Buyurtmani yangilash"
+                    : "🍲 Oshxonaga yuborish"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate("/waiter/tables")
+                  }
+                  disabled={saving}
+                  className="w-full mt-2 bg-gray-100 hover:bg-gray-200 text-gray-600 py-3 rounded-xl font-bold text-sm cursor-pointer"
+                >
+                  Bekor qilish
+                </button>
+              </div>
+            </div>
+          </aside>
         </div>
-      )}
+      </main>
     </div>
   );
 }

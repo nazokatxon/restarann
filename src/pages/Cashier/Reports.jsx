@@ -1,853 +1,476 @@
 import React, { useEffect, useMemo, useState } from "react";
-
-import {
-  collection,
-  onSnapshot,
-  query,
-  where,
-} from "firebase/firestore";
-
-import {
-  Receipt,
-  Banknote,
-  CreditCard,
-  CalendarDays,
-} from "lucide-react";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 
 import { db } from "../../firebase/config.js";
 import { useAuth } from "../../context/AuthContext";
 
 export default function Reports() {
-  const { cafeId } = useAuth();
+  const navigate = useNavigate();
+  const { user } = useAuth(); // Kafe id bo'yicha filter qilish uchun
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState("monthly");
+  const [period, setPeriod] = useState("today");
 
   // =====================================================
-  // DATE
-  // =====================================================
-
-  const getOrderDate = (order) => {
-    if (!order) return null;
-
-    try {
-      // Avval paidAt
-      if (order?.paidAt?.toDate) {
-        return order.paidAt.toDate();
-      }
-
-      // Firebase Timestamp seconds
-      if (
-        order?.paidAt?.seconds !== undefined
-      ) {
-        return new Date(
-          order.paidAt.seconds * 1000
-        );
-      }
-
-      // Oddiy paidAt
-      if (order?.paidAt) {
-        const date = new Date(order.paidAt);
-
-        if (!Number.isNaN(date.getTime())) {
-          return date;
-        }
-      }
-
-      // Keyin createdAt
-      if (order?.createdAt?.toDate) {
-        return order.createdAt.toDate();
-      }
-
-      if (
-        order?.createdAt?.seconds !== undefined
-      ) {
-        return new Date(
-          order.createdAt.seconds * 1000
-        );
-      }
-
-      if (order?.createdAt) {
-        const date = new Date(
-          order.createdAt
-        );
-
-        if (!Number.isNaN(date.getTime())) {
-          return date;
-        }
-      }
-    } catch (error) {
-      console.error(
-        "Order sanasini olishda xato:",
-        error
-      );
-    }
-
-    return null;
-  };
-
-  // =====================================================
-  // ORDERS
+  // ORDERS REALTIME (cafeId bo'yicha saralash)
   // =====================================================
 
   useEffect(() => {
-    if (!cafeId) {
-      setOrders([]);
+    if (!user) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
-
-    const q = query(
-      collection(db, "orders"),
-      where(
-        "cafeId",
-        "==",
-        String(cafeId)
-      )
-    );
+    const ordersRef = collection(db, "orders");
+    
+    // Agar foydalanuvchida cafeId bo'lsa, faqat shuning buyurtmalarini olamiz
+    const q = user?.cafeId
+      ? query(ordersRef, where("cafeId", "==", user.cafeId))
+      : query(ordersRef);
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const data = snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
-          .filter((order) => {
-            const paymentStatus =
-              String(
-                order?.paymentStatus || ""
-              )
-                .trim()
-                .toLowerCase();
-
-            // Kassa yopgan cheklar
-            return (
-              paymentStatus === "paid" ||
-              order?.isPaid === true
-            );
-          });
-
-        data.sort((a, b) => {
-          const aDate =
-            getOrderDate(a)?.getTime() || 0;
-
-          const bDate =
-            getOrderDate(b)?.getTime() || 0;
-
-          return bDate - aDate;
-        });
-
-        console.log(
-          "REPORTS - PAID ORDERS:",
-          data
-        );
+        const data = snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        }));
 
         setOrders(data);
         setLoading(false);
       },
       (error) => {
-        console.error(
-          "❌ Hisobotlarni olishda xatolik:",
-          error
-        );
-
-        setOrders([]);
+        console.error("Orders load error:", error);
+        toast.error("Hisobotlarni yuklashda xatolik!");
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [cafeId]);
+  }, [user]);
 
   // =====================================================
-  // SUMMA
+  // DATE HELPER
   // =====================================================
+
+  const getDate = (value) => {
+    if (!value) return null;
+    if (value?.toDate) return value.toDate();
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+
+    return date;
+  };
+
+  const getOrderDate = (order) => {
+    return (
+      getDate(order.closedAt) ||
+      getDate(order.paidAt) ||
+      getDate(order.updatedAt) ||
+      getDate(order.createdAt)
+    );
+  };
+
+  // =====================================================
+  // ORDER ITEMS & TOTAL
+  // =====================================================
+
+  const getOrderItems = (order) => {
+    if (!order) return [];
+    if (Array.isArray(order.items)) return order.items;
+    if (Array.isArray(order.kitchenItems)) return order.kitchenItems;
+    if (Array.isArray(order.products)) return order.products;
+    return [];
+  };
 
   const getOrderTotal = (order) => {
-    const totalAmount = Number(
-      order?.totalAmount
-    );
-
-    if (
-      Number.isFinite(totalAmount) &&
-      totalAmount > 0
-    ) {
-      return totalAmount;
+    if (order.totalAmount !== undefined && order.totalAmount !== null && !Number.isNaN(Number(order.totalAmount))) {
+      return Number(order.totalAmount);
+    }
+    if (order.total !== undefined && order.total !== null && !Number.isNaN(Number(order.total))) {
+      return Number(order.total);
+    }
+    if (order.totalPrice !== undefined && order.totalPrice !== null && !Number.isNaN(Number(order.totalPrice))) {
+      return Number(order.totalPrice);
     }
 
-    const totalPrice = Number(
-      order?.totalPrice
-    );
-
-    if (
-      Number.isFinite(totalPrice) &&
-      totalPrice > 0
-    ) {
-      return totalPrice;
-    }
-
-    const total = Number(
-      order?.total
-    );
-
-    if (
-      Number.isFinite(total) &&
-      total > 0
-    ) {
-      return total;
-    }
-
-    const amount = Number(
-      order?.amount
-    );
-
-    if (
-      Number.isFinite(amount) &&
-      amount > 0
-    ) {
-      return amount;
-    }
-
-    // Agar orderda total saqlanmagan bo'lsa,
-    // items orqali hisoblaymiz.
-    if (Array.isArray(order?.items)) {
-      return order.items.reduce(
-        (sum, item) => {
-          const price =
-            Number(item?.price) || 0;
-
-          const quantity =
-            Number(
-              item?.quantity ??
-                item?.qty ??
-                1
-            ) || 1;
-
-          return (
-            sum +
-            price * quantity
-          );
-        },
-        0
-      );
-    }
-
-    return 0;
+    return getOrderItems(order).reduce((sum, item) => {
+      const price = Number(item.price || 0);
+      const quantity = Number(item.quantity ?? item.count ?? item.qty ?? 1);
+      return sum + price * quantity;
+    }, 0);
   };
 
-  // =====================================================
-  // TO'LOV TURI
-  // =====================================================
-
-  const getPaymentMethod = (order) => {
-    return String(
-      order?.paymentMethod || ""
-    )
-      .trim()
-      .toLowerCase();
-  };
-
-  const isCashPayment = (order) => {
-    const method =
-      getPaymentMethod(order);
+  const isPaidOrder = (order) => {
+    const status = String(order.status || "").trim().toLowerCase();
+    const paymentStatus = String(order.paymentStatus || "").trim().toLowerCase();
 
     return (
-      method === "cash" ||
-      method === "naqd" ||
-      method === "cash_payment"
-    );
-  };
-
-  const isCardPayment = (order) => {
-    const method =
-      getPaymentMethod(order);
-
-    return (
-      method === "card" ||
-      method === "karta" ||
-      method === "plastic" ||
-      method === "plastik"
-    );
-  };
-
-  const getPaymentLabel = (order) => {
-    if (isCardPayment(order)) {
-      return "Plastik karta";
-    }
-
-    if (isCashPayment(order)) {
-      return "Naqd pul";
-    }
-
-    return "Noma'lum";
-  };
-
-  // =====================================================
-  // ORDER NUMBER
-  // =====================================================
-
-  const getOrderNumber = (order) => {
-    return (
-      order?.orderNumber ||
-      order?.orderNo ||
-      order?.number ||
-      `#${String(
-        order?.id || ""
-      ).slice(0, 8)}`
+      order.isPaid === true ||
+      paymentStatus === "paid" ||
+      status === "paid" ||
+      status === "completed" ||
+      status === "closed"
     );
   };
 
   // =====================================================
-  // FILTER
+  // PERIOD CHECK
   // =====================================================
 
-  const filteredOrders = useMemo(() => {
+  const isInSelectedPeriod = (date) => {
+    if (!date) return false;
     const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
+    if (period === "today") return date >= startToday;
+    if (period === "week") {
+      const weekStart = new Date(startToday);
+      weekStart.setDate(startToday.getDate() - 6);
+      return date >= weekStart;
+    }
+    if (period === "month") {
+      return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+    }
+    if (period === "year") return date.getFullYear() === now.getFullYear();
+
+    return true;
+  };
+
+  const paidOrders = useMemo(() => {
     return orders.filter((order) => {
-      const orderDate =
-        getOrderDate(order);
-
-      if (!orderDate) {
-        return false;
-      }
-
-      // =================================================
-      // KUNLIK
-      // =================================================
-
-      if (period === "daily") {
-        return (
-          orderDate.getDate() ===
-            now.getDate() &&
-          orderDate.getMonth() ===
-            now.getMonth() &&
-          orderDate.getFullYear() ===
-            now.getFullYear()
-        );
-      }
-
-      // =================================================
-      // HAFTALIK
-      // =================================================
-
-      if (period === "weekly") {
-        const weekAgo =
-          new Date(now);
-
-        weekAgo.setDate(
-          now.getDate() - 7
-        );
-
-        return (
-          orderDate >= weekAgo &&
-          orderDate <= now
-        );
-      }
-
-      // =================================================
-      // OYLIK
-      // =================================================
-
-      if (period === "monthly") {
-        return (
-          orderDate.getMonth() ===
-            now.getMonth() &&
-          orderDate.getFullYear() ===
-            now.getFullYear()
-        );
-      }
-
-      // =================================================
-      // YILLIK
-      // =================================================
-
-      if (period === "yearly") {
-        return (
-          orderDate.getFullYear() ===
-          now.getFullYear()
-        );
-      }
-
-      return true;
+      if (!isPaidOrder(order)) return false;
+      const orderDate = getOrderDate(order);
+      return isInSelectedPeriod(orderDate);
     });
   }, [orders, period]);
 
   // =====================================================
-  // NAQD
+  // STATISTICS (Naqd, Karta, Click alohida ajratilgan)
   // =====================================================
 
-  const cashTotal = useMemo(() => {
-    return filteredOrders
-      .filter(isCashPayment)
-      .reduce(
-        (sum, order) =>
-          sum + getOrderTotal(order),
-        0
-      );
-  }, [filteredOrders]);
+  const stats = useMemo(() => {
+    let totalRevenue = 0;
+    let cashRevenue = 0;
+    let cardRevenue = 0;
+    let clickRevenue = 0;
+    let orderCount = 0;
 
-  // =====================================================
-  // KARTA
-  // =====================================================
+    paidOrders.forEach((order) => {
+      const total = getOrderTotal(order);
+      totalRevenue += total;
+      orderCount += 1;
 
-  const cardTotal = useMemo(() => {
-    return filteredOrders
-      .filter(isCardPayment)
-      .reduce(
-        (sum, order) =>
-          sum + getOrderTotal(order),
-        0
-      );
-  }, [filteredOrders]);
+      const method = String(
+        order.paymentMethod || order.paymentType || order.payment || ""
+      ).trim().toLowerCase();
 
-  // =====================================================
-  // JAMI
-  // =====================================================
-
-  const grandTotal = useMemo(() => {
-    return filteredOrders.reduce(
-      (sum, order) =>
-        sum + getOrderTotal(order),
-      0
-    );
-  }, [filteredOrders]);
-
-  // =====================================================
-  // FOIZ
-  // =====================================================
-
-  const cashPercent =
-    grandTotal > 0
-      ? Math.round(
-          (cashTotal /
-            grandTotal) *
-            100
-        )
-      : 0;
-
-  const cardPercent =
-    grandTotal > 0
-      ? Math.round(
-          (cardTotal /
-            grandTotal) *
-            100
-        )
-      : 0;
-
-  // =====================================================
-  // MONEY
-  // =====================================================
-
-  const formatMoney = (value) => {
-    return (
-      new Intl.NumberFormat(
-        "uz-UZ"
-      ).format(
-        Number(value) || 0
-      ) + " so'm"
-    );
-  };
-
-  // =====================================================
-  // DATE FORMAT
-  // =====================================================
-
-  const formatDate = (order) => {
-    const date =
-      getOrderDate(order);
-
-    if (!date) {
-      return "-";
-    }
-
-    return date.toLocaleString(
-      "uz-UZ",
-      {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+      if (method.includes("cash") || method.includes("naqd")) {
+        cashRevenue += total;
+      } else if (method.includes("click")) {
+        clickRevenue += total;
+      } else {
+        cardRevenue += total;
       }
-    );
-  };
+    });
+
+    const averageCheck = orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0;
+
+    return {
+      totalRevenue,
+      cashRevenue,
+      cardRevenue,
+      clickRevenue,
+      orderCount,
+      averageCheck,
+    };
+  }, [paidOrders]);
 
   // =====================================================
-  // LOADING
+  // FORMATTERS & LABELS
   // =====================================================
+
+  const formatMoney = (amount) => `${Number(amount || 0).toLocaleString("uz-UZ")} so'm`;
+
+  const formatDate = (value) => {
+    const date = getDate(value);
+    if (!date) return "-";
+    return date.toLocaleDateString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric" });
+  };
+
+  const formatTime = (value) => {
+    const date = getDate(value);
+    if (!date) return "-";
+    return date.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const getPaymentMethodLabel = (order) => {
+    const method = String(order.paymentMethod || order.paymentType || order.payment || "").trim().toLowerCase();
+    if (method.includes("cash") || method.includes("naqd")) return "Naqd pul";
+    if (method.includes("click")) return "Click";
+    return "Karta orqali";
+  };
+
+  const cashPercent = stats.totalRevenue > 0 ? (stats.cashRevenue / stats.totalRevenue) * 100 : 0;
+  const cardPercent = stats.totalRevenue > 0 ? (stats.cardRevenue / stats.totalRevenue) * 100 : 0;
+  const clickPercent = stats.totalRevenue > 0 ? (stats.clickRevenue / stats.totalRevenue) * 100 : 0;
 
   if (loading) {
     return (
-      <div className="w-full min-h-[300px] flex items-center justify-center">
-        <p className="text-sm font-semibold text-slate-500">
-          Hisobotlar yuklanmoqda...
-        </p>
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl animate-pulse">📊</div>
+          <p className="mt-4 font-bold text-slate-500">Hisobotlar yuklanmoqda...</p>
+        </div>
       </div>
     );
   }
 
-  // =====================================================
-  // UI
-  // =====================================================
-
   return (
-    <div className="w-full max-w-[1200px] mx-auto">
-
-      {/* HEADER */}
-
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-slate-900">
-            Hisobotlar
-          </h1>
-
-          <p className="text-sm sm:text-base text-slate-500 mt-2">
-            Sotuvlar va umumiy tushumlar bo'yicha tahlillar
-          </p>
-        </div>
-
-        {/* PERIOD */}
-
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl text-sm font-bold w-fit">
-
-          {[
-            {
-              id: "daily",
-              label: "Kunlik",
-            },
-            {
-              id: "weekly",
-              label: "Haftalik",
-            },
-            {
-              id: "monthly",
-              label: "Oylik",
-            },
-            {
-              id: "yearly",
-              label: "Yillik",
-            },
-          ].map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() =>
-                setPeriod(p.id)
-              }
-              className={`px-4 py-2.5 rounded-xl ${
-                period === p.id
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-900"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-
-        </div>
-
-      </div>
-
-      {/* CARDS */}
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
-
-        {/* JAMI */}
-
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm relative overflow-hidden">
-
-          <div className="absolute left-0 top-0 w-1.5 h-full bg-emerald-500" />
-
-          <p className="text-xs font-extrabold text-slate-400 uppercase">
-            Jami tushum
-          </p>
-
-          <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-2">
-            {formatMoney(grandTotal)}
-          </p>
-
-          <p className="text-xs text-slate-500 mt-2">
-            Jami{" "}
-            <strong>
-              {filteredOrders.length}
-            </strong>{" "}
-            ta chek yopilgan
-          </p>
-
-        </div>
-
-        {/* NAQD */}
-
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm relative overflow-hidden">
-
-          <div className="absolute left-0 top-0 w-1.5 h-full bg-amber-500" />
-
-          <div className="flex items-center gap-2">
-
-            <Banknote
-              size={18}
-              className="text-amber-600"
-            />
-
-            <p className="text-xs font-extrabold text-slate-400 uppercase">
-              Naqd tushum
-            </p>
-
-          </div>
-
-          <p className="text-2xl sm:text-3xl font-black text-amber-700 mt-2">
-            {formatMoney(cashTotal)}
-          </p>
-
-          <p className="text-xs text-slate-500 mt-2">
-            Ulushi:{" "}
-            {cashPercent}%
-          </p>
-
-        </div>
-
-        {/* KARTA */}
-
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm relative overflow-hidden">
-
-          <div className="absolute left-0 top-0 w-1.5 h-full bg-blue-500" />
-
-          <div className="flex items-center gap-2">
-
-            <CreditCard
-              size={18}
-              className="text-blue-600"
-            />
-
-            <p className="text-xs font-extrabold text-slate-400 uppercase">
-              Karta tushumi
-            </p>
-
-          </div>
-
-          <p className="text-2xl sm:text-3xl font-black text-blue-600 mt-2">
-            {formatMoney(cardTotal)}
-          </p>
-
-          <p className="text-xs text-slate-500 mt-2">
-            Ulushi:{" "}
-            {cardPercent}%
-          </p>
-
-        </div>
-
-      </div>
-
-      {/* PAYMENT RATIO */}
-
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm mb-6">
-
-        <h3 className="font-extrabold text-slate-900 text-lg mb-6">
-          To'lov turlari nisbati
-        </h3>
-
-        <div className="space-y-6">
-
-          {/* CASH */}
-
-          <div>
-
-            <div className="flex justify-between items-center mb-2">
-
-              <span className="text-amber-700 font-extrabold text-sm">
-                Naqd pul
-              </span>
-
-              <span className="text-slate-800 text-sm font-extrabold">
-                {formatMoney(cashTotal)}
-              </span>
-
+    <div className="min-h-screen bg-[#f8fafc] text-[#243447]">
+      <main className="max-w-[1250px] mx-auto px-5 py-8">
+        {/* SARTAVHA */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-[#fff7e7] flex items-center justify-center text-2xl shadow-sm">
+              📊
             </div>
-
-            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-
-              <div
-                className="bg-amber-500 h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${cashPercent}%`,
-                }}
-              />
-
+            <div>
+              <h1 className="text-3xl font-black text-slate-800">Hisobotlar</h1>
+              <p className="text-sm text-slate-400 mt-1">Kafe savdo va to'lovlar statistikasi</p>
             </div>
-
           </div>
-
-          {/* CARD */}
-
-          <div>
-
-            <div className="flex justify-between items-center mb-2">
-
-              <span className="text-blue-600 font-extrabold text-sm">
-                Karta orqali
-              </span>
-
-              <span className="text-slate-800 text-sm font-extrabold">
-                {formatMoney(cardTotal)}
-              </span>
-
-            </div>
-
-            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-
-              <div
-                className="bg-blue-600 h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${cardPercent}%`,
-                }}
-              />
-
-            </div>
-
+          <div className="bg-white border border-slate-200 shadow-sm rounded-2xl px-5 py-3 text-sm font-medium text-slate-500">
+            📅 {formatDate(new Date())}
           </div>
-
         </div>
 
-      </div>
-
-      {/* YOPILGAN CHEKLAR */}
-
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-
-        <div className="p-6 border-b border-slate-100">
-
-          <div className="flex items-center gap-2">
-
-            <Receipt
-              size={20}
-              className="text-slate-600"
-            />
-
-            <h3 className="font-extrabold text-slate-900 text-lg">
-              Yopilgan cheklar
-            </h3>
-
+        {/* DAVR SHABLONLARI */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-3 mb-6 shadow-sm">
+          <div className="flex flex-wrap gap-3">
+            {[
+              { id: "today", label: "Bugun" },
+              { id: "week", label: "Haftalik" },
+              { id: "month", label: "Oylik" },
+              { id: "year", label: "Yillik" },
+            ].map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setPeriod(item.id)}
+                className={`px-6 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                  period === item.id
+                    ? "bg-[#2454b8] text-white shadow-lg shadow-blue-100"
+                    : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
-
-          <p className="text-sm text-slate-500 mt-1">
-            Tanlangan davrda yopilgan barcha cheklar
-          </p>
-
         </div>
 
-        {filteredOrders.length === 0 ? (
-
-          <div className="py-16 text-center text-slate-400">
-
-            <Receipt
-              size={42}
-              className="mx-auto mb-3 text-slate-300"
-            />
-
-            <p className="font-semibold">
-              Yopilgan cheklar yo'q
-            </p>
-
+        {/* ASOSIY STATISTIKA KARTALARI */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-400">Jami tushum</span>
+              <span className="text-xl">💰</span>
+            </div>
+            <div className="mt-5 text-2xl font-black text-[#16865c]">{formatMoney(stats.totalRevenue)}</div>
+            <p className="text-xs text-slate-400 mt-3">{stats.orderCount} ta to'langan buyurtma</p>
           </div>
 
-        ) : (
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-400">Naqd pul</span>
+              <span className="text-xl">💵</span>
+            </div>
+            <div className="mt-5 text-2xl font-black text-[#d97706]">{formatMoney(stats.cashRevenue)}</div>
+            <p className="text-xs text-slate-400 mt-3">Naqd to'lovlar</p>
+          </div>
 
-          <div className="divide-y divide-slate-100">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-400">Karta / Click</span>
+              <span className="text-xl">💳</span>
+            </div>
+            <div className="mt-5 text-2xl font-black text-[#2454b8]">{formatMoney(stats.cardRevenue + stats.clickRevenue)}</div>
+            <p className="text-xs text-slate-400 mt-3">Terminal va ilovalar</p>
+          </div>
 
-            {filteredOrders.map(
-              (order) => (
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-400">O'rtacha chek</span>
+              <span className="text-xl">🧾</span>
+            </div>
+            <div className="mt-5 text-2xl font-black text-[#6d35c9]">{formatMoney(stats.averageCheck)}</div>
+            <p className="text-xs text-slate-400 mt-3">Har bir buyurtma uchun</p>
+          </div>
+        </div>
+
+        {/* CHART & DETAILS */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <h2 className="text-xl font-black text-slate-800 mb-7">To'lovlar nisbati</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-8">
+              <div className="relative w-40 h-40 shrink-0">
                 <div
-                  key={order.id}
-                  className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-slate-50"
-                >
-
-                  <div className="flex items-start gap-4">
-
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
-
-                      {isCardPayment(order) ? (
-                        <CreditCard
-                          size={19}
-                          className="text-blue-600"
-                        />
-                      ) : (
-                        <Banknote
-                          size={19}
-                          className="text-amber-600"
-                        />
-                      )}
-
-                    </div>
-
-                    <div>
-
-                      <p className="font-black text-slate-900">
-                        {getOrderNumber(order)}
-                      </p>
-
-                      <p className="text-xs text-slate-500 mt-1">
-                        {formatDate(order)}
-                      </p>
-
-                      {order.tableNumber && (
-                        <p className="text-xs text-slate-500 mt-1">
-                          {order.tableNumber}-stol
-                        </p>
-                      )}
-
-                    </div>
-
-                  </div>
-
-                  <div className="flex items-center justify-between sm:justify-end gap-6">
-
-                    <p
-                      className={`text-xs font-bold ${
-                        isCardPayment(order)
-                          ? "text-blue-600"
-                          : isCashPayment(order)
-                          ? "text-amber-700"
-                          : "text-slate-500"
-                      }`}
-                    >
-                      {getPaymentLabel(order)}
-                    </p>
-
-                    <p className="font-black text-slate-900">
-                      {formatMoney(
-                        getOrderTotal(order)
-                      )}
-                    </p>
-
-                  </div>
-
+                  className="w-40 h-40 rounded-full"
+                  style={{
+                    background:
+                      stats.totalRevenue > 0
+                        ? `conic-gradient(
+                            #16865c 0 ${cashPercent}%,
+                            #2454b8 ${cashPercent}% ${cashPercent + cardPercent}%,
+                            #0052cc ${cashPercent + cardPercent}% 100%
+                          )`
+                        : "#e2e8f0",
+                  }}
+                />
+                <div className="absolute inset-5 rounded-full bg-white flex flex-col items-center justify-center shadow-inner">
+                  <span className="text-xl font-black text-slate-700">{stats.orderCount}</span>
+                  <span className="text-xs text-slate-400 mt-1">ta</span>
                 </div>
-              )
-            )}
+              </div>
 
+              <div className="flex-1 space-y-4">
+                <div>
+                  <div className="flex items-center justify-between gap-5">
+                    <div className="flex items-center gap-3">
+                      <span className="w-3 h-3 rounded-full bg-[#16865c]" />
+                      <span className="font-bold text-sm text-slate-700">Naqd pul</span>
+                    </div>
+                    <span className="text-sm font-bold text-[#16865c]">{cashPercent.toFixed(1)}%</span>
+                  </div>
+                  <p className="text-sm text-slate-500 ml-6 mt-1">{formatMoney(stats.cashRevenue)}</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between gap-5">
+                    <div className="flex items-center gap-3">
+                      <span className="w-3 h-3 rounded-full bg-[#2454b8]" />
+                      <span className="font-bold text-sm text-slate-700">Karta</span>
+                    </div>
+                    <span className="text-sm font-bold text-[#2454b8]">{cardPercent.toFixed(1)}%</span>
+                  </div>
+                  <p className="text-sm text-slate-500 ml-6 mt-1">{formatMoney(stats.cardRevenue)}</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between gap-5">
+                    <div className="flex items-center gap-3">
+                      <span className="w-3 h-3 rounded-full bg-[#0052cc]" />
+                      <span className="font-bold text-sm text-slate-700">Click</span>
+                    </div>
+                    <span className="text-sm font-bold text-[#0052cc]">{clickPercent.toFixed(1)}%</span>
+                  </div>
+                  <p className="text-sm text-slate-500 ml-6 mt-1">{formatMoney(stats.clickRevenue)}</p>
+                </div>
+              </div>
+            </div>
           </div>
 
-        )}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <h2 className="text-xl font-black text-slate-800 mb-6">Qisqa ma'lumot</h2>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between bg-slate-50 rounded-xl px-5 py-4">
+                <span className="text-sm text-slate-500">To'langan buyurtmalar</span>
+                <span className="font-black text-[#2454b8]">{stats.orderCount} ta</span>
+              </div>
+              <div className="flex items-center justify-between bg-slate-50 rounded-xl px-5 py-4">
+                <span className="text-sm text-slate-500">Jami savdo</span>
+                <span className="font-black text-[#16865c]">{formatMoney(stats.totalRevenue)}</span>
+              </div>
+              <div className="flex items-center justify-between bg-slate-50 rounded-xl px-5 py-4">
+                <span className="text-sm text-slate-500">O'rtacha buyurtma</span>
+                <span className="font-black text-[#6d35c9]">{formatMoney(stats.averageCheck)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      </div>
+        {/* JADVAL */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-black text-slate-800">To'langan buyurtmalar</h2>
+              <p className="text-sm text-slate-400 mt-1">Tanlangan davr bo'yicha to'lovlar</p>
+            </div>
+            <span className="bg-blue-50 text-[#2454b8] px-4 py-2 rounded-xl text-xs font-black">
+              {paidOrders.length} ta
+            </span>
+          </div>
 
-      {/* INFO */}
+          {paidOrders.length === 0 ? (
+            <div className="py-20 text-center">
+              <div className="text-5xl mb-4">📭</div>
+              <h3 className="font-bold text-slate-600">Hozircha ma'lumot mavjud emas</h3>
+              <p className="text-sm text-slate-400 mt-2">Ushbu davrda to'langan buyurtmalar topilmadi</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[850px]">
+                <thead>
+                  <tr className="bg-slate-50 text-left">
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400">Vaqt</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400">Stol</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400">Buyurtma</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400">To'lov turi</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400">Jami</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400">Holat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paidOrders
+                    .slice()
+                    .sort((a, b) => (getOrderDate(b)?.getTime() || 0) - (getOrderDate(a)?.getTime() || 0))
+                    .map((order) => {
+                      const orderDate = getOrderDate(order);
+                      const tableNumber = order.tableNumber ?? order.table ?? order.tableNo ?? "-";
+                      const paymentLabel = getPaymentMethodLabel(order);
 
-      <div className="mt-5 flex items-center gap-2 text-xs text-slate-400 font-medium">
-
-        <CalendarDays size={15} />
-
-        Ma'lumotlar tanlangan vaqt oralig'i bo'yicha hisoblangan.
-
-      </div>
-
+                      return (
+                        <tr key={order.id} className="border-t border-slate-100 hover:bg-slate-50 transition">
+                          <td className="px-6 py-5">
+                            <div className="font-bold text-sm text-slate-700">{formatTime(orderDate)}</div>
+                            <div className="text-xs text-slate-400 mt-1">{formatDate(orderDate)}</div>
+                          </td>
+                          <td className="px-6 py-5 font-bold text-slate-700">№ {tableNumber}</td>
+                          <td className="px-6 py-5">
+                            <span className="text-sm text-slate-600">{getOrderItems(order).length} ta mahsulot</span>
+                          </td>
+                          <td className="px-6 py-5">
+                            <span
+                              className={`inline-flex px-3 py-2 rounded-lg text-xs font-bold ${
+                                paymentLabel === "Naqd pul"
+                                  ? "bg-amber-50 text-amber-700"
+                                  : paymentLabel === "Click"
+                                  ? "bg-sky-50 text-sky-700"
+                                  : "bg-blue-50 text-blue-700"
+                              }`}
+                            >
+                              {paymentLabel}
+                            </span>
+                          </td>
+                          <td className="px-6 py-5 font-black text-slate-800">{formatMoney(getOrderTotal(order))}</td>
+                          <td className="px-6 py-5">
+                            <span className="text-sm font-bold text-emerald-600">✓ To'langan</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }

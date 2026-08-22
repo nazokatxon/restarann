@@ -31,7 +31,9 @@ import OrderForm from "./pages/Waiter/OrderForm";
 import KitchenQueue from "./pages/Chef/KitchenQueue";
 
 import Billing from "./pages/Cashier/Billing";
+import Buyurtma from "./pages/Cashier/Buyurtma";
 import Reports from "./pages/Cashier/Reports";
+import Receipts from "./pages/Cashier/Receipts";
 
 import ErrorBoundary from "./ErrorBoundary";
 
@@ -163,7 +165,7 @@ function RoleRedirect() {
     case "kassir":
       return (
         <Navigate
-          to="/cashier/billing"
+          to="/cashier/buyurtma"
           replace
         />
       );
@@ -187,12 +189,8 @@ function CashierTopNav() {
 
   const items = [
     {
-      to: "/cashier/billing",
+      to: "/cashier/buyurtma",
       label: "Buyurtmalar",
-    },
-    {
-      to: "/cashier/payments",
-      label: "To'lovlar",
     },
     {
       to: "/cashier/receipts",
@@ -288,18 +286,11 @@ function MainLayout({
   return (
     <div className="min-h-screen bg-slate-50">
 
-      {/* =================================================
-          SIDEBAR
-      ================================================= */}
+      {/* SIDEBAR */}
 
       <Sidebar />
 
-      {/* =================================================
-          MAIN CONTENT
-
-          Sidebar desktop width = 240px
-          Mobile'da sidebar pastda bo'ladi
-      ================================================= */}
+      {/* MAIN CONTENT */}
 
       <div
         className="
@@ -312,17 +303,13 @@ function MainLayout({
         "
       >
 
-        {/* =================================================
-            HEADER / NAVBAR
-        ================================================= */}
+        {/* HEADER */}
 
         <header className="sticky top-0 z-50 bg-white">
           <Navbar />
         </header>
 
-        {/* =================================================
-            CASHIER TOP MENU
-        ================================================= */}
+        {/* CASHIER TOP MENU */}
 
         {isCashier && (
           <div className="sticky top-[68px] z-40">
@@ -330,9 +317,7 @@ function MainLayout({
           </div>
         )}
 
-        {/* =================================================
-            PAGE CONTENT
-        ================================================= */}
+        {/* PAGE CONTENT */}
 
         <main className="flex-1 bg-slate-50 w-full min-w-0">
           {children}
@@ -355,6 +340,7 @@ function CashierSimplePage({
     <div className="w-full min-h-screen bg-slate-50">
 
       <div className="bg-white border-b border-slate-200">
+
         <div className="px-5 sm:px-10 py-8">
 
           <h1 className="text-3xl sm:text-4xl font-black text-slate-900">
@@ -366,6 +352,7 @@ function CashierSimplePage({
           </p>
 
         </div>
+
       </div>
 
       <div className="bg-white border-x border-b border-slate-200 px-5 sm:px-10 py-10">
@@ -549,6 +536,26 @@ function AppRoutes() {
       />
 
       {/* =================================================
+          CASHIER BUYURTMA
+      ================================================= */}
+
+      <Route
+        path="/cashier/buyurtma"
+        element={
+          <ProtectedRoute
+            allowedRoles={[
+              "cashier",
+              "kassir",
+            ]}
+          >
+            <MainLayout>
+              <Buyurtma />
+            </MainLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* =================================================
           CASHIER BILLING
       ================================================= */}
 
@@ -605,10 +612,7 @@ function AppRoutes() {
             ]}
           >
             <MainLayout>
-              <CashierSimplePage
-                title="Cheklar"
-                description="Cheklar va to'lov hujjatlarini boshqarish"
-              />
+              <Receipts />
             </MainLayout>
           </ProtectedRoute>
         }

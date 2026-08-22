@@ -8,10 +8,6 @@ export default function CashierTabs() {
       path: "/cashier/billing",
     },
     {
-      label: "To'lovlar",
-      path: "/cashier/payments",
-    },
-    {
       label: "Cheklar",
       path: "/cashier/receipts",
     },
@@ -34,37 +30,18 @@ export default function CashierTabs() {
               key={tab.path}
               to={tab.path}
               className={({ isActive }) =>
-                `
-                relative
-                shrink-0
-                py-5
-                text-base
-                font-bold
-                transition-colors
-                ${
+                `relative shrink-0 py-5 text-base font-bold transition-colors ${
                   isActive
                     ? "text-blue-600"
                     : "text-slate-500 hover:text-slate-800"
-                }
-                `
+                }`
               }
             >
               {({ isActive }) => (
                 <>
                   {tab.label}
-
                   {isActive && (
-                    <span
-                      className="
-                        absolute
-                        left-0
-                        right-0
-                        bottom-0
-                        h-0.5
-                        bg-blue-600
-                        rounded-full
-                      "
-                    />
+                    <span className="absolute left-0 right-0 bottom-0 h-1 bg-blue-600 rounded-full" />
                   )}
                 </>
               )}

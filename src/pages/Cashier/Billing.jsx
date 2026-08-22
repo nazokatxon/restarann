@@ -39,6 +39,7 @@ export default function Billing() {
   const [search, setSearch] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [statusFilter, setStatusFilter] =
+  
     useState("all");
   const [typeFilter, setTypeFilter] =
     useState("all");
@@ -264,7 +265,11 @@ export default function Billing() {
         paymentStatus === "paid" ||
         order?.isPaid === true;
 
-      return !cancelled && !paid;
+      // Kassada faqat ofitsiant yuborgan buyurtmalar chiqadi.
+      const sentToCashier =
+        status === "waiting_payment";
+
+      return !cancelled && !paid && sentToCashier;
     });
   }, [orders]);
 
@@ -329,7 +334,8 @@ export default function Billing() {
       if (dateFilter) {
         const orderDate =
           getDateObject(
-            order?.createdAt
+            order?.sentToCashierAt ||
+              order?.createdAt
           );
 
         if (!orderDate) {
@@ -453,35 +459,36 @@ export default function Billing() {
       return amount;
     }
 
-    if (Array.isArray(order?.items)) {
-      return order.items.reduce(
-        (sum, item) => {
-          const price =
-            Number(item?.price) || 0;
+    return getItems(order).reduce(
+      (sum, item) => {
+        const price = Number(item?.price) || 0;
+        const quantity = Number(
+          item?.quantity ??
+            item?.qty ??
+            item?.count ??
+            1
+        ) || 1;
 
-          const quantity =
-            Number(
-              item?.quantity ??
-                item?.qty ??
-                1
-            ) || 1;
-
-          return (
-            sum +
-            price * quantity
-          );
-        },
-        0
-      );
-    }
-
-    return 0;
+        return sum + price * quantity;
+      },
+      0
+    );
   };
 
   const getItems = (order) => {
-    return Array.isArray(order?.items)
-      ? order.items
-      : [];
+    if (Array.isArray(order?.kitchenItems)) {
+      return order.kitchenItems;
+    }
+
+    if (Array.isArray(order?.items)) {
+      return order.items;
+    }
+
+    if (Array.isArray(order?.products)) {
+      return order.products;
+    }
+
+    return [];
   };
 
   const formatMoney = (value) => {
@@ -537,6 +544,9 @@ export default function Billing() {
       case "yangi":
         return "Yangi";
 
+      case "waiting_payment":
+        return "Kassada kutilmoqda";
+
       case "pending":
       case "waiting":
       case "kutilmoqda":
@@ -577,6 +587,10 @@ export default function Billing() {
       value === "yangi"
     ) {
       return "bg-green-50 text-green-600";
+    }
+
+    if (value === "waiting_payment") {
+      return "bg-amber-50 text-amber-700";
     }
 
     if (
@@ -1173,7 +1187,9 @@ export default function Billing() {
 
         isPaid: true,
 
-        status: "paid",
+        totalAmount: getTotal(selectedOrder),
+
+        status: "closed",
 
         paidAt,
 
@@ -1206,6 +1222,8 @@ export default function Billing() {
 
           isPaid: true,
 
+          totalAmount: getTotal(selectedOrder),
+
           paidAt:
             serverTimestamp(),
 
@@ -1221,7 +1239,10 @@ export default function Billing() {
           cashierUsername:
             user?.username || null,
 
-          status: "paid",
+          status: "closed",
+
+          closedAt:
+            serverTimestamp(),
 
           updatedAt:
             serverTimestamp(),
@@ -1453,6 +1474,10 @@ export default function Billing() {
             >
               <option value="all">
                 Holat: Barchasi
+              </option>
+
+              <option value="waiting_payment">
+                Kassada kutilmoqda
               </option>
 
               <option value="new">
@@ -1708,7 +1733,8 @@ export default function Billing() {
 
                           <td className="py-4 px-6 text-xs text-slate-500">
                             {formatDate(
-                              order.createdAt
+                              order.sentToCashierAt ||
+                                order.createdAt
                             )}
                           </td>
 
