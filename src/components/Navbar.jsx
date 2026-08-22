@@ -6,7 +6,7 @@ import "./Navbar.css";
 
 export default function Navbar() {
   const { user, role, cafeName, logout } = useAuth();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
 
   const [langOpen, setLangOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -18,60 +18,82 @@ export default function Navbar() {
   // ==========================================================
   // TILLAR RO'YXATI
   // ==========================================================
+
   const languages = [
-    { code: "uz", label: "O'zbek" },
-    { code: "ru", label: "Русский" },
-    { code: "en", label: "English" },
+    {
+      code: "uz",
+      label: "O'zbek",
+    },
+    {
+      code: "ru",
+      label: "Русский",
+    },
+    {
+      code: "en",
+      label: "English",
+    },
   ];
 
   const currentLang = i18n?.language || "uz";
 
+  // ==========================================================
+  // TILNI O'ZGARTIRISH
+  // ==========================================================
+
   const handleLangChange = (code) => {
     localStorage.setItem("appLang", code);
-    if (i18n?.changeLanguage) {
+
+    if (
+      i18n &&
+      typeof i18n.changeLanguage === "function"
+    ) {
       i18n.changeLanguage(code);
     }
+
     setLangOpen(false);
   };
 
   // ==========================================================
   // TASHQARIGA BOSILGANDA DROPDOWNLARNI YOPISH
   // ==========================================================
+
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (profileRef.current && !profileRef.current.contains(event.target)) {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(event.target)
+      ) {
         setProfileOpen(false);
       }
-      if (langRef.current && !langRef.current.contains(event.target)) {
+
+      if (
+        langRef.current &&
+        !langRef.current.contains(event.target)
+      ) {
         setLangOpen(false);
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside
+    );
+
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
     };
   }, []);
 
   // ==========================================================
-  // ROLE NOMLARI (TARJIMA QILINADIGAN)
-  // ==========================================================
-  const roleLabels = {
-    bigadmin: t("Big Admin"),
-    admin: t("Direktor"),
-    waiter: t("Ofitsiant"),
-    ofitsiant: t("Ofitsiant"),
-    chef: t("Oshpaz"),
-    oshpaz: t("Oshpaz"),
-    cashier: t("Kassir"),
-    kassir: t("Kassir"),
-  };
-
-  // ==========================================================
   // LOGOUT
   // ==========================================================
+
   const handleLogout = async () => {
     setProfileOpen(false);
+
     try {
       await logout();
     } catch (error) {
@@ -82,175 +104,413 @@ export default function Navbar() {
   // ==========================================================
   // FOYDALANUVCHI MA'LUMOTLARI
   // ==========================================================
+
   const displayName =
     user?.displayName ||
     user?.username ||
     user?.login ||
-    (user?.email ? user.email.split("@")[0] : "Profil");
+    (user?.email
+      ? user.email.split("@")[0]
+      : "Profil");
 
-  const avatarLetter = displayName?.charAt(0)?.toUpperCase() || "P";
+  const avatarLetter =
+    displayName?.charAt(0)?.toUpperCase() || "A";
 
   const isBigAdmin = role === "bigadmin";
-  const isWaiter = role === "waiter" || role === "ofitsiant";
-  const displayTitle = isBigAdmin ? "Control Hub" : cafeName || "";
+
+  const isWaiter =
+    role === "waiter" ||
+    role === "ofitsiant";
+
+  const displayTitle = isBigAdmin
+    ? "Control Hub"
+    : cafeName || "";
 
   return (
     <>
       <nav className="lightswind-nav">
-        {/* ======================================================
-            CHAP TOMON: LOGO VA SARLAVHA
-        ====================================================== */}
-        <div className="flex items-center gap-3">
-          {/* LOGO */}
-          <div
-            className={`brand-logo-box ${
-              isBigAdmin
-                ? "bg-slate-900"
-                : "bg-gradient-to-tr from-amber-600 to-amber-400"
-            }`}
-          >
-            {isBigAdmin ? (
-              <span className="text-white text-lg">👑</span>
-            ) : (
-              <span className="text-white font-extrabold text-lg">
-                {cafeName ? cafeName.trim().charAt(0).toUpperCase() : "🏢"}
-              </span>
-            )}
-          </div>
-
-          {/* NOMI VA VERSIYA */}
-          <div className="flex items-center gap-2">
-            {displayTitle && (
-              <h1 className="font-extrabold text-base sm:text-lg text-slate-800 tracking-tight whitespace-nowrap">
-                {displayTitle}
-              </h1>
-            )}
-
-            <span
-              className={`font-semibold text-[10px] px-1.5 py-0.5 rounded-md border ${
-                isBigAdmin
-                  ? "text-amber-700 bg-amber-50 border-amber-200"
-                  : "text-amber-600 bg-amber-50 border-amber-200/60"
-              }`}
-            >
-              {isBigAdmin ? "SYSTEM" : "v1.0"}
-            </span>
-          </div>
-        </div>
 
         {/* ======================================================
-            O'NG TOMON: AI, TIL VA PROFIL
+            O'NG TOMON
+            AI + TIL + ADMIN
         ====================================================== */}
+
         {!isWaiter && (
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* AI ASSISTANT TUGMASI */}
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+
+            {/* ==================================================
+                AI YORDAMCHI
+            ================================================== */}
+
             <button
               type="button"
               onClick={() => setAiOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all active:scale-95"
+              className="
+                flex
+                items-center
+                gap-1.5
+                px-3
+                py-1.5
+                rounded-xl
+                bg-gradient-to-r
+                from-amber-500
+                to-amber-600
+                hover:from-amber-600
+                hover:to-amber-700
+                text-white
+                font-bold
+                text-xs
+                shadow-sm
+                hover:shadow
+                transition-all
+                active:scale-95
+              "
             >
-              <span className="text-sm">🤖</span>
-              <span className="hidden sm:inline">AI Yordamchi</span>
+              <span className="text-sm">
+                🤖
+              </span>
+
+              <span className="hidden sm:inline">
+                AI Yordamchi
+              </span>
             </button>
 
             {/* DIVIDER */}
+
             <div className="nav-divider" />
 
-            {/* TIL DROPDOWNI */}
-            <div className="relative" ref={langRef}>
+            {/* ==================================================
+                TIL DROPDOWNI
+            ================================================== */}
+
+            <div
+              className="relative"
+              ref={langRef}
+            >
+
+              {/* TIL TUGMASI */}
+
               <button
                 type="button"
                 onClick={() => {
                   setLangOpen(!langOpen);
                   setProfileOpen(false);
                 }}
-                className="btn-tactile"
+                className="
+                  h-9
+                  flex
+                  items-center
+                  gap-2
+                  px-3
+                  rounded-xl
+                  border
+                  border-sky-200
+                  bg-sky-50
+                  text-sky-600
+                  hover:bg-sky-100
+                  hover:border-sky-300
+                  transition-all
+                  active:scale-95
+                  shadow-sm
+                "
               >
-                <span>🌐</span>
-                <span className="hidden sm:inline">
-                  {languages.find((lang) => lang.code === currentLang)?.label ||
-                    "O'zbek"}
+
+                <span className="text-sm">
+                  🌐
                 </span>
+
+                <span className="hidden sm:inline text-[13px] font-bold">
+                  {languages.find(
+                    (lang) =>
+                      lang.code ===
+                      currentLang
+                  )?.label || "O'zbek"}
+                </span>
+
+                <span
+                  className={`
+                    text-[10px]
+                    text-sky-400
+                    transition-transform
+                    duration-200
+                    ${
+                      langOpen
+                        ? "rotate-180"
+                        : ""
+                    }
+                  `}
+                >
+                  ▾
+                </span>
+
               </button>
+
+              {/* ==================================================
+                  CHIROYLI TIL MENYUSI
+                  PASTGA CHIQADI
+              ================================================== */}
 
               {langOpen && (
-                <div className="lightswind-dropdown">
-                  {languages.map((lang) => (
-                    <button
-                      key={lang.code}
-                      type="button"
-                      onClick={() => handleLangChange(lang.code)}
-                      className={`w-full text-left px-3 py-2 text-[13px] rounded-lg transition ${
-                        currentLang === lang.code
-                          ? "text-amber-600 font-bold bg-amber-50"
-                          : "text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      {lang.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                <div
+                  className="
+                    absolute
+                    top-full
+                    right-0
+                    mt-2
+                    w-44
+                    bg-white
+                    rounded-2xl
+                    border
+                    border-slate-100
+                    shadow-xl
+                    shadow-slate-200/70
+                    p-1.5
+                    z-[9999]
+                  "
+                >
 
-            {/* DIVIDER */}
-            <div className="nav-divider" />
+                  {/* KICHIK HEADER */}
 
-            {/* PROFIL DROPDOWNI */}
-            <div className="relative" ref={profileRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setProfileOpen(!profileOpen);
-                  setLangOpen(false);
-                }}
-                className="h-9 flex items-center gap-2 pl-1.5 pr-3 rounded-xl border border-slate-200/80 bg-slate-50 hover:bg-amber-50/50 hover:border-amber-300 transition-all active:scale-95"
-              >
-                {/* AVATAR */}
-                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-amber-500 to-amber-700 text-white flex items-center justify-center text-xs font-bold shadow-sm">
-                  {avatarLetter}
-                </div>
-
-                {/* USERNAME */}
-                <span className="text-[13px] font-bold text-slate-700 hidden sm:block">
-                  {displayName}
-                </span>
-                <span className="text-xs text-slate-400">▾</span>
-              </button>
-
-              {profileOpen && (
-                <div className="profile-dropdown">
-                  {/* FOYDALANUVCHI MA'LUMOTI CARD */}
-                  <div className="px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/80 mb-2">
-                    {!isBigAdmin && cafeName && (
-                      <p className="text-[12px] font-extrabold text-amber-800 border-b border-amber-200/50 pb-1 mb-1 truncate">
-                        🏢 {cafeName}
-                      </p>
-                    )}
-                    <p className="text-[10px] font-extrabold text-amber-600 uppercase tracking-wider">
-                      LAVOZIM
-                    </p>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5 flex items-center gap-1.5">
-                      {isBigAdmin
-                        ? "👑 Big Admin"
-                        : `👨‍🍳 ${roleLabels[role] || role || "Xodim"}`}
+                  <div className="px-3 pt-2 pb-1.5">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                      Tilni tanlang
                     </p>
                   </div>
 
-                  {/* CHIQISH TUGMASI */}
+                  {/* TILLAR */}
+
+                  <div className="space-y-1">
+
+                    {languages.map(
+                      (lang) => {
+                        const selected =
+                          currentLang ===
+                          lang.code;
+
+                        return (
+                          <button
+                            key={lang.code}
+                            type="button"
+                            onClick={() =>
+                              handleLangChange(
+                                lang.code
+                              )
+                            }
+                            className={`
+                              w-full
+                              flex
+                              items-center
+                              justify-between
+                              px-3
+                              py-2.5
+                              rounded-xl
+                              text-left
+                              transition-all
+                              duration-200
+                              ${
+                                selected
+                                  ? "bg-sky-50 text-sky-600"
+                                  : "text-slate-600 hover:bg-slate-50 hover:text-sky-600"
+                              }
+                            `}
+                          >
+
+                            <span className="flex items-center gap-2.5">
+
+                              {/* LANGUAGE CODE */}
+
+                              <span
+                                className={`
+                                  w-8
+                                  h-8
+                                  rounded-lg
+                                  flex
+                                  items-center
+                                  justify-center
+                                  text-[10px]
+                                  font-black
+                                  transition-all
+                                  ${
+                                    selected
+                                      ? "bg-sky-400 text-white shadow-sm"
+                                      : "bg-slate-100 text-slate-500"
+                                  }
+                                `}
+                              >
+                                {lang.code.toUpperCase()}
+                              </span>
+
+                              {/* LANGUAGE NAME */}
+
+                              <span className="text-[13px] font-bold">
+                                {lang.label}
+                              </span>
+
+                            </span>
+
+                            {/* CHECK */}
+
+                            {selected && (
+                              <span className="w-5 h-5 rounded-full bg-sky-100 text-sky-500 flex items-center justify-center text-xs font-black">
+                                ✓
+                              </span>
+                            )}
+
+                          </button>
+                        );
+                      }
+                    )}
+
+                  </div>
+
+                </div>
+              )}
+
+            </div>
+
+            {/* DIVIDER */}
+
+            <div className="nav-divider" />
+
+            {/* ==================================================
+                ADMIN / PROFIL
+            ================================================== */}
+
+            <div
+              className="relative"
+              ref={profileRef}
+            >
+
+              {/* ADMIN TUGMASI */}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileOpen(
+                    !profileOpen
+                  );
+
+                  setLangOpen(false);
+                }}
+                className="
+                  h-9
+                  flex
+                  items-center
+                  gap-2
+                  pl-1.5
+                  pr-3
+                  rounded-xl
+                  border
+                  border-sky-200
+                  bg-sky-50
+                  hover:bg-sky-100
+                  hover:border-sky-300
+                  transition-all
+                  active:scale-95
+                  shadow-sm
+                "
+              >
+
+                {/* A HARFI */}
+
+                <div
+                  className="
+                    w-6
+                    h-6
+                    rounded-lg
+                    bg-sky-400
+                    text-white
+                    flex
+                    items-center
+                    justify-center
+                    text-xs
+                    font-black
+                    shadow-sm
+                  "
+                >
+                  {avatarLetter}
+                </div>
+
+                {/* ADMIN NOMI */}
+
+                <span className="text-[13px] font-bold text-sky-600 hidden sm:block">
+                  {displayName}
+                </span>
+
+                {/* ARROW */}
+
+                <span className="text-xs text-sky-400">
+                  ▾
+                </span>
+
+              </button>
+
+              {/* ==================================================
+                  ADMIN DROPDOWN
+                  FAQAT CHIQISH
+              ================================================== */}
+
+              {profileOpen && (
+                <div
+                  className="
+                    absolute
+                    top-full
+                    right-0
+                    mt-2
+                    w-40
+                    bg-white
+                    rounded-2xl
+                    border
+                    border-slate-100
+                    shadow-xl
+                    shadow-slate-200/70
+                    p-1.5
+                    z-[9999]
+                  "
+                >
+
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="w-full flex items-center justify-between px-3.5 py-2.5 text-[13px] text-red-600 font-bold bg-red-50 hover:bg-red-600 hover:text-white rounded-xl transition-all duration-200 group shadow-sm active:scale-95"
+                    className="
+                      w-full
+                      flex
+                      items-center
+                      justify-between
+                      px-3.5
+                      py-2.5
+                      text-[13px]
+                      text-red-600
+                      font-bold
+                      bg-red-50
+                      hover:bg-red-600
+                      hover:text-white
+                      rounded-xl
+                      transition-all
+                      duration-200
+                      group
+                      shadow-sm
+                      active:scale-95
+                    "
                   >
-                    <span>Chiqish</span>
+
+                    <span>
+                      Chiqish
+                    </span>
+
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       fill="none"
                       viewBox="0 0 24 24"
                       strokeWidth="2"
                       stroke="currentColor"
-                      className="w-4 h-4 text-red-500 group-hover:text-white transition-colors"
+                      className="
+                        w-4
+                        h-4
+                        text-red-500
+                        group-hover:text-white
+                        transition-colors
+                      "
                     >
                       <path
                         strokeLinecap="round"
@@ -258,18 +518,28 @@ export default function Navbar() {
                         d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H9"
                       />
                     </svg>
+
                   </button>
+
                 </div>
               )}
+
             </div>
+
           </div>
         )}
+
       </nav>
 
-      {/* AI ASSISTANT MODAL */}
+      {/* ========================================================
+          AI ASSISTANT MODAL
+      ======================================================== */}
+
       <AIAssistantModal
         isOpen={aiOpen}
-        onClose={() => setAiOpen(false)}
+        onClose={() =>
+          setAiOpen(false)
+        }
         userRole={role}
       />
     </>

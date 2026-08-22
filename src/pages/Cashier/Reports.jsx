@@ -8,16 +8,22 @@ import { useAuth } from "../../context/AuthContext";
 
 export default function Reports() {
   const navigate = useNavigate();
-  const { user } = useAuth(); // Kafe id bo'yicha filter qilish uchun
+  const { user } = useAuth();
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState("today");
+  const [period, setPeriod] = useState("Oylik"); // Kunlik, Haftalik, Oylik, Yillik
+
+  const periods = [
+    { id: "today", label: "Kunlik" },
+    { id: "week", label: "Haftalik" },
+    { id: "month", label: "Oylik" },
+    { id: "year", label: "Yillik" },
+  ];
 
   // =====================================================
-  // ORDERS REALTIME (cafeId bo'yicha saralash)
+  // REALTIME FIRESTORE ORDERS
   // =====================================================
-
   useEffect(() => {
     if (!user) {
       setLoading(false);
@@ -26,8 +32,6 @@ export default function Reports() {
 
     setLoading(true);
     const ordersRef = collection(db, "orders");
-    
-    // Agar foydalanuvchida cafeId bo'lsa, faqat shuning buyurtmalarini olamiz
     const q = user?.cafeId
       ? query(ordersRef, where("cafeId", "==", user.cafeId))
       : query(ordersRef);
@@ -39,7 +43,6 @@ export default function Reports() {
           id: item.id,
           ...item.data(),
         }));
-
         setOrders(data);
         setLoading(false);
       },
@@ -54,17 +57,13 @@ export default function Reports() {
   }, [user]);
 
   // =====================================================
-  // DATE HELPER
+  // DATE & ITEM HELPER FUNCTIONS
   // =====================================================
-
   const getDate = (value) => {
     if (!value) return null;
     if (value?.toDate) return value.toDate();
-
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return null;
-
-    return date;
+    return Number.isNaN(date.getTime()) ? null : date;
   };
 
   const getOrderDate = (order) => {
@@ -75,10 +74,6 @@ export default function Reports() {
       getDate(order.createdAt)
     );
   };
-
-  // =====================================================
-  // ORDER ITEMS & TOTAL
-  // =====================================================
 
   const getOrderItems = (order) => {
     if (!order) return [];
@@ -109,7 +104,6 @@ export default function Reports() {
   const isPaidOrder = (order) => {
     const status = String(order.status || "").trim().toLowerCase();
     const paymentStatus = String(order.paymentStatus || "").trim().toLowerCase();
-
     return (
       order.isPaid === true ||
       paymentStatus === "paid" ||
@@ -119,25 +113,21 @@ export default function Reports() {
     );
   };
 
-  // =====================================================
-  // PERIOD CHECK
-  // =====================================================
-
   const isInSelectedPeriod = (date) => {
     if (!date) return false;
     const now = new Date();
     const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    if (period === "today") return date >= startToday;
-    if (period === "week") {
+    if (period === "Kunlik" || period === "today") return date >= startToday;
+    if (period === "Haftalik" || period === "week") {
       const weekStart = new Date(startToday);
       weekStart.setDate(startToday.getDate() - 6);
       return date >= weekStart;
     }
-    if (period === "month") {
+    if (period === "Oylik" || period === "month") {
       return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
     }
-    if (period === "year") return date.getFullYear() === now.getFullYear();
+    if (period === "Yillik" || period === "year") return date.getFullYear() === now.getFullYear();
 
     return true;
   };
@@ -151,9 +141,8 @@ export default function Reports() {
   }, [orders, period]);
 
   // =====================================================
-  // STATISTICS (Naqd, Karta, Click alohida ajratilgan)
+  // STATISTIKA HISOBLARI
   // =====================================================
-
   const stats = useMemo(() => {
     let totalRevenue = 0;
     let cashRevenue = 0;
@@ -180,33 +169,43 @@ export default function Reports() {
     });
 
     const averageCheck = orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0;
-
-    return {
-      totalRevenue,
-      cashRevenue,
-      cardRevenue,
-      clickRevenue,
-      orderCount,
-      averageCheck,
-    };
+    return { totalRevenue, cashRevenue, cardRevenue, clickRevenue, orderCount, averageCheck };
   }, [paidOrders]);
 
-  // =====================================================
-  // FORMATTERS & LABELS
-  // =====================================================
+  // Top 5 taomlarni hisoblash (Dinamik)
+  const topDishes = useMemo(() => {
+    const dishMap = {};
 
+    paidOrders.forEach((order) => {
+      const items = getOrderItems(order);
+      items.forEach((item) => {
+        const name = item.name || item.title || "Noma'lum taom";
+        const qty = Number(item.quantity ?? item.count ?? item.qty ?? 1);
+        const price = Number(item.price || 0);
+
+        if (!dishMap[name]) {
+          dishMap[name] = { count: 0, total: 0 };
+        }
+        dishMap[name].count += qty;
+        dishMap[name].total += price * qty;
+      });
+    });
+
+    return Object.entries(dishMap)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [paidOrders]);
+
+  // Formatterlar
   const formatMoney = (amount) => `${Number(amount || 0).toLocaleString("uz-UZ")} so'm`;
-
   const formatDate = (value) => {
     const date = getDate(value);
-    if (!date) return "-";
-    return date.toLocaleDateString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric" });
+    return date ? date.toLocaleDateString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric" }) : "-";
   };
-
   const formatTime = (value) => {
     const date = getDate(value);
-    if (!date) return "-";
-    return date.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
+    return date ? date.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }) : "-";
   };
 
   const getPaymentMethodLabel = (order) => {
@@ -216,9 +215,9 @@ export default function Reports() {
     return "Karta orqali";
   };
 
-  const cashPercent = stats.totalRevenue > 0 ? (stats.cashRevenue / stats.totalRevenue) * 100 : 0;
-  const cardPercent = stats.totalRevenue > 0 ? (stats.cardRevenue / stats.totalRevenue) * 100 : 0;
-  const clickPercent = stats.totalRevenue > 0 ? (stats.clickRevenue / stats.totalRevenue) * 100 : 0;
+  const cashPercent = stats.totalRevenue > 0 ? ((stats.cashRevenue / stats.totalRevenue) * 100).toFixed(0) : 0;
+  const cardTotalRevenue = stats.cardRevenue + stats.clickRevenue;
+  const cardPercent = stats.totalRevenue > 0 ? ((cardTotalRevenue / stats.totalRevenue) * 100).toFixed(0) : 0;
 
   if (loading) {
     return (
@@ -232,41 +231,24 @@ export default function Reports() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-[#243447]">
-      <main className="max-w-[1250px] mx-auto px-5 py-8">
-        {/* SARTAVHA */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 mb-8">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-[#fff7e7] flex items-center justify-center text-2xl shadow-sm">
-              📊
-            </div>
-            <div>
-              <h1 className="text-3xl font-black text-slate-800">Hisobotlar</h1>
-              <p className="text-sm text-slate-400 mt-1">Kafe savdo va to'lovlar statistikasi</p>
-            </div>
+    <div className="p-8 bg-[#f8fafc] min-h-screen font-sans text-[#243447]">
+      <main className="max-w-[1250px] mx-auto">
+        {/* Yuqori qism: Sarlavha va Filtrlar */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold text-slate-800">Kassa Hisobotlari</h1>
+            <p className="text-slate-400 text-sm mt-1">Sotuvlar va umumiy tushumlar bo'yicha tahlillar</p>
           </div>
-          <div className="bg-white border border-slate-200 shadow-sm rounded-2xl px-5 py-3 text-sm font-medium text-slate-500">
-            📅 {formatDate(new Date())}
-          </div>
-        </div>
 
-        {/* DAVR SHABLONLARI */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 mb-6 shadow-sm">
-          <div className="flex flex-wrap gap-3">
-            {[
-              { id: "today", label: "Bugun" },
-              { id: "week", label: "Haftalik" },
-              { id: "month", label: "Oylik" },
-              { id: "year", label: "Yillik" },
-            ].map((item) => (
+          <div className="bg-slate-200/60 p-1 rounded-2xl flex items-center gap-1 w-fit">
+            {periods.map((item) => (
               <button
                 key={item.id}
-                type="button"
-                onClick={() => setPeriod(item.id)}
-                className={`px-6 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-                  period === item.id
-                    ? "bg-[#2454b8] text-white shadow-lg shadow-blue-100"
-                    : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                onClick={() => setPeriod(item.label)}
+                className={`px-5 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer ${
+                  period === item.label
+                    ? "bg-white text-slate-800 shadow-sm font-bold"
+                    : "text-slate-500 hover:text-slate-700"
                 }`}
               >
                 {item.label}
@@ -275,158 +257,125 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* ASOSIY STATISTIKA KARTALARI */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-400">Jami tushum</span>
-              <span className="text-xl">💰</span>
+        {/* Yuqori KPI kartalar */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-3xl border-l-4 border-l-emerald-500 shadow-sm border border-slate-100">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">JAMI TUSHUM</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-slate-800">{stats.totalRevenue.toLocaleString("uz-UZ")}</span>
+              <span className="text-sm font-medium text-slate-400">so'm</span>
             </div>
-            <div className="mt-5 text-2xl font-black text-[#16865c]">{formatMoney(stats.totalRevenue)}</div>
-            <p className="text-xs text-slate-400 mt-3">{stats.orderCount} ta to'langan buyurtma</p>
+            <p className="text-xs text-slate-400 mt-3 font-medium">Jami {stats.orderCount} ta chek yopilgan</p>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-400">Naqd pul</span>
-              <span className="text-xl">💵</span>
+          <div className="bg-white p-6 rounded-3xl border-l-4 border-l-amber-500 shadow-sm border border-slate-100">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">💵 NAQD TUSHUM</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-slate-800">{stats.cashRevenue.toLocaleString("uz-UZ")}</span>
+              <span className="text-sm font-medium text-slate-400">so'm</span>
             </div>
-            <div className="mt-5 text-2xl font-black text-[#d97706]">{formatMoney(stats.cashRevenue)}</div>
-            <p className="text-xs text-slate-400 mt-3">Naqd to'lovlar</p>
+            <p className="text-xs text-slate-400 mt-3 font-medium">Ulushi: {cashPercent}%</p>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-400">Karta / Click</span>
-              <span className="text-xl">💳</span>
+          <div className="bg-white p-6 rounded-3xl border-l-4 border-l-blue-500 shadow-sm border border-slate-100">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">💳 KARTA TUSHUMI</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-blue-600">{cardTotalRevenue.toLocaleString("uz-UZ")}</span>
+              <span className="text-sm font-medium text-slate-400">so'm</span>
             </div>
-            <div className="mt-5 text-2xl font-black text-[#2454b8]">{formatMoney(stats.cardRevenue + stats.clickRevenue)}</div>
-            <p className="text-xs text-slate-400 mt-3">Terminal va ilovalar</p>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-400">O'rtacha chek</span>
-              <span className="text-xl">🧾</span>
-            </div>
-            <div className="mt-5 text-2xl font-black text-[#6d35c9]">{formatMoney(stats.averageCheck)}</div>
-            <p className="text-xs text-slate-400 mt-3">Har bir buyurtma uchun</p>
+            <p className="text-xs text-slate-400 mt-3 font-medium">Ulushi: {cardPercent}%</p>
           </div>
         </div>
 
-        {/* CHART & DETAILS */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-            <h2 className="text-xl font-black text-slate-800 mb-7">To'lovlar nisbati</h2>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-8">
-              <div className="relative w-40 h-40 shrink-0">
-                <div
-                  className="w-40 h-40 rounded-full"
-                  style={{
-                    background:
-                      stats.totalRevenue > 0
-                        ? `conic-gradient(
-                            #16865c 0 ${cashPercent}%,
-                            #2454b8 ${cashPercent}% ${cashPercent + cardPercent}%,
-                            #0052cc ${cashPercent + cardPercent}% 100%
-                          )`
-                        : "#e2e8f0",
-                  }}
-                />
-                <div className="absolute inset-5 rounded-full bg-white flex flex-col items-center justify-center shadow-inner">
-                  <span className="text-xl font-black text-slate-700">{stats.orderCount}</span>
-                  <span className="text-xs text-slate-400 mt-1">ta</span>
-                </div>
-              </div>
-
-              <div className="flex-1 space-y-4">
-                <div>
-                  <div className="flex items-center justify-between gap-5">
-                    <div className="flex items-center gap-3">
-                      <span className="w-3 h-3 rounded-full bg-[#16865c]" />
-                      <span className="font-bold text-sm text-slate-700">Naqd pul</span>
-                    </div>
-                    <span className="text-sm font-bold text-[#16865c]">{cashPercent.toFixed(1)}%</span>
-                  </div>
-                  <p className="text-sm text-slate-500 ml-6 mt-1">{formatMoney(stats.cashRevenue)}</p>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between gap-5">
-                    <div className="flex items-center gap-3">
-                      <span className="w-3 h-3 rounded-full bg-[#2454b8]" />
-                      <span className="font-bold text-sm text-slate-700">Karta</span>
-                    </div>
-                    <span className="text-sm font-bold text-[#2454b8]">{cardPercent.toFixed(1)}%</span>
-                  </div>
-                  <p className="text-sm text-slate-500 ml-6 mt-1">{formatMoney(stats.cardRevenue)}</p>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between gap-5">
-                    <div className="flex items-center gap-3">
-                      <span className="w-3 h-3 rounded-full bg-[#0052cc]" />
-                      <span className="font-bold text-sm text-slate-700">Click</span>
-                    </div>
-                    <span className="text-sm font-bold text-[#0052cc]">{clickPercent.toFixed(1)}%</span>
-                  </div>
-                  <p className="text-sm text-slate-500 ml-6 mt-1">{formatMoney(stats.clickRevenue)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-            <h2 className="text-xl font-black text-slate-800 mb-6">Qisqa ma'lumot</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between bg-slate-50 rounded-xl px-5 py-4">
-                <span className="text-sm text-slate-500">To'langan buyurtmalar</span>
-                <span className="font-black text-[#2454b8]">{stats.orderCount} ta</span>
-              </div>
-              <div className="flex items-center justify-between bg-slate-50 rounded-xl px-5 py-4">
-                <span className="text-sm text-slate-500">Jami savdo</span>
-                <span className="font-black text-[#16865c]">{formatMoney(stats.totalRevenue)}</span>
-              </div>
-              <div className="flex items-center justify-between bg-slate-50 rounded-xl px-5 py-4">
-                <span className="text-sm text-slate-500">O'rtacha buyurtma</span>
-                <span className="font-black text-[#6d35c9]">{formatMoney(stats.averageCheck)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* JADVAL */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Nisbatlar va Top taomlar */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between">
             <div>
-              <h2 className="text-xl font-black text-slate-800">To'langan buyurtmalar</h2>
-              <p className="text-sm text-slate-400 mt-1">Tanlangan davr bo'yicha to'lovlar</p>
+              <h3 className="text-xl font-bold text-slate-800 mb-6">To'lov turlari nisbati</h3>
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between items-center text-sm font-bold text-slate-700 mb-2">
+                    <span className="flex items-center gap-2">💵 Naqd pul</span>
+                    <span>{formatMoney(stats.cashRevenue)}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                    <div className="bg-amber-500 h-full rounded-full transition-all duration-500" style={{ width: `${cashPercent}%` }}></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center text-sm font-bold text-slate-700 mb-2">
+                    <span className="flex items-center gap-2">💳 Karta / Click</span>
+                    <span>{formatMoney(cardTotalRevenue)}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                    <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${cardPercent}%` }}></div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <span className="bg-blue-50 text-[#2454b8] px-4 py-2 rounded-xl text-xs font-black">
-              {paidOrders.length} ta
+            <div className="mt-8 pt-4 border-t border-slate-50 text-xs text-slate-400 font-medium">
+              💡 O'rtacha chek summasi: <span className="font-bold text-slate-700">{formatMoney(stats.averageCheck)}</span>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+            <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">🔥 Eng ko'p sotilgan taomlar (Top 5)</h3>
+            {topDishes.length === 0 ? (
+              <p className="text-slate-400 text-sm py-8 text-center">Ma'lumot mavjud emas</p>
+            ) : (
+              <div className="space-y-3">
+                {topDishes.map((item, index) => (
+                  <div key={item.name} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/70 hover:bg-slate-100/80 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <span className="w-7 h-7 rounded-xl bg-amber-100/80 text-amber-700 font-bold text-xs flex items-center justify-center">
+                        {index + 1}
+                      </span>
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">{item.name}</h4>
+                        <p className="text-xs text-slate-400">{item.count} ta sotildi</p>
+                      </div>
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-sm">{formatMoney(item.total)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Buyurtmalar jadvali */}
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">To'langan buyurtmalar jadvali</h2>
+              <p className="text-sm text-slate-400 mt-1">Tanlangan davr bo'yicha to'lovlar va cheklar</p>
+            </div>
+            <span className="bg-blue-50 text-[#2454b8] px-4 py-2 rounded-xl text-xs font-black w-fit">
+              {paidOrders.length} ta buyurtma
             </span>
           </div>
 
           {paidOrders.length === 0 ? (
-            <div className="py-20 text-center">
-              <div className="text-5xl mb-4">📭</div>
+            <div className="py-16 text-center">
+              <div className="text-4xl mb-3">📭</div>
               <h3 className="font-bold text-slate-600">Hozircha ma'lumot mavjud emas</h3>
-              <p className="text-sm text-slate-400 mt-2">Ushbu davrda to'langan buyurtmalar topilmadi</p>
+              <p className="text-sm text-slate-400 mt-1">Ushbu davrda to'langan buyurtmalar topilmadi</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[850px]">
+              <table className="w-full min-w-[750px]">
                 <thead>
-                  <tr className="bg-slate-50 text-left">
+                  <tr className="bg-slate-50/80 text-left">
                     <th className="px-6 py-4 text-xs font-bold text-slate-400">Vaqt</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-400">Stol</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-400">Buyurtma</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400">Tarkib</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-400">To'lov turi</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-400">Jami</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-400">Holat</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {paidOrders
                     .slice()
                     .sort((a, b) => (getOrderDate(b)?.getTime() || 0) - (getOrderDate(a)?.getTime() || 0))
@@ -436,18 +385,16 @@ export default function Reports() {
                       const paymentLabel = getPaymentMethodLabel(order);
 
                       return (
-                        <tr key={order.id} className="border-t border-slate-100 hover:bg-slate-50 transition">
-                          <td className="px-6 py-5">
+                        <tr key={order.id} className="hover:bg-slate-50/50 transition">
+                          <td className="px-6 py-4">
                             <div className="font-bold text-sm text-slate-700">{formatTime(orderDate)}</div>
-                            <div className="text-xs text-slate-400 mt-1">{formatDate(orderDate)}</div>
+                            <div className="text-xs text-slate-400">{formatDate(orderDate)}</div>
                           </td>
-                          <td className="px-6 py-5 font-bold text-slate-700">№ {tableNumber}</td>
-                          <td className="px-6 py-5">
-                            <span className="text-sm text-slate-600">{getOrderItems(order).length} ta mahsulot</span>
-                          </td>
-                          <td className="px-6 py-5">
+                          <td className="px-6 py-4 font-bold text-slate-700">№ {tableNumber}</td>
+                          <td className="px-6 py-4 text-sm text-slate-600">{getOrderItems(order).length} ta mahsulot</td>
+                          <td className="px-6 py-4">
                             <span
-                              className={`inline-flex px-3 py-2 rounded-lg text-xs font-bold ${
+                              className={`inline-flex px-3 py-1.5 rounded-lg text-xs font-bold ${
                                 paymentLabel === "Naqd pul"
                                   ? "bg-amber-50 text-amber-700"
                                   : paymentLabel === "Click"
@@ -458,10 +405,8 @@ export default function Reports() {
                               {paymentLabel}
                             </span>
                           </td>
-                          <td className="px-6 py-5 font-black text-slate-800">{formatMoney(getOrderTotal(order))}</td>
-                          <td className="px-6 py-5">
-                            <span className="text-sm font-bold text-emerald-600">✓ To'langan</span>
-                          </td>
+                          <td className="px-6 py-4 font-black text-slate-800">{formatMoney(getOrderTotal(order))}</td>
+                          <td className="px-6 py-4 text-sm font-bold text-emerald-600">✓ To'langan</td>
                         </tr>
                       );
                     })}

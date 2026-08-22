@@ -287,11 +287,9 @@ function MainLayout({
     <div className="min-h-screen bg-slate-50">
 
       {/* SIDEBAR */}
-
       <Sidebar />
 
       {/* MAIN CONTENT */}
-
       <div
         className="
           min-h-screen
@@ -303,14 +301,12 @@ function MainLayout({
         "
       >
 
-        {/* HEADER */}
-
+        {/* HEADER / NAVBAR */}
         <header className="sticky top-0 z-50 bg-white">
           <Navbar />
         </header>
 
         {/* CASHIER TOP MENU */}
-
         {isCashier && (
           <div className="sticky top-[68px] z-40">
             <CashierTopNav />
@@ -318,7 +314,6 @@ function MainLayout({
         )}
 
         {/* PAGE CONTENT */}
-
         <main className="flex-1 bg-slate-50 w-full min-w-0">
           {children}
         </main>
@@ -387,28 +382,19 @@ function AppRoutes() {
   return (
     <Routes>
 
-      {/* =================================================
-          LOGIN
-      ================================================= */}
-
+      {/* LOGIN */}
       <Route
         path="/login"
         element={<Login />}
       />
 
-      {/* =================================================
-          ROOT REDIRECT
-      ================================================= */}
-
+      {/* ROOT REDIRECT */}
       <Route
         path="/"
         element={<RoleRedirect />}
       />
 
-      {/* =================================================
-          BIG ADMIN
-      ================================================= */}
-
+      {/* BIG ADMIN */}
       <Route
         path="/bigadmin/cafes"
         element={
@@ -424,10 +410,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          ADMIN ANALYTICS
-      ================================================= */}
-
+      {/* ADMIN ANALYTICS */}
       <Route
         path="/admin/analytics"
         element={
@@ -443,10 +426,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          ADMIN MENU
-      ================================================= */}
-
+      {/* ADMIN MENU */}
       <Route
         path="/admin/menu"
         element={
@@ -462,10 +442,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          ADMIN STAFF
-      ================================================= */}
-
+      {/* ADMIN STAFF */}
       <Route
         path="/admin/staff"
         element={
@@ -481,10 +458,23 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          WAITER TABLES
-      ================================================= */}
+      {/* ADMIN REPORTS */}
+      <Route
+        path="/admin/reports"
+        element={
+          <ProtectedRoute
+            allowedRoles={[
+              "admin",
+            ]}
+          >
+            <MainLayout>
+              <Reports />
+            </MainLayout>
+          </ProtectedRoute>
+        }
+      />
 
+      {/* WAITER TABLES */}
       <Route
         path="/waiter/tables"
         element={
@@ -499,10 +489,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          WAITER ORDER
-      ================================================= */}
-
+      {/* WAITER ORDER */}
       <Route
         path="/waiter/order"
         element={
@@ -517,10 +504,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          CHEF
-      ================================================= */}
-
+      {/* CHEF */}
       <Route
         path="/chef/queue"
         element={
@@ -535,10 +519,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          CASHIER BUYURTMA
-      ================================================= */}
-
+      {/* CASHIER BUYURTMA */}
       <Route
         path="/cashier/buyurtma"
         element={
@@ -555,10 +536,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          CASHIER BILLING
-      ================================================= */}
-
+      {/* CASHIER BILLING */}
       <Route
         path="/cashier/billing"
         element={
@@ -575,10 +553,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          CASHIER PAYMENTS
-      ================================================= */}
-
+      {/* CASHIER PAYMENTS */}
       <Route
         path="/cashier/payments"
         element={
@@ -598,10 +573,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          CASHIER RECEIPTS
-      ================================================= */}
-
+      {/* CASHIER RECEIPTS */}
       <Route
         path="/cashier/receipts"
         element={
@@ -618,10 +590,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          CASHIER REPORTS
-      ================================================= */}
-
+      {/* CASHIER REPORTS */}
       <Route
         path="/cashier/reports"
         element={
@@ -638,10 +607,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          CASHIER SETTINGS
-      ================================================= */}
-
+      {/* CASHIER SETTINGS */}
       <Route
         path="/cashier/settings"
         element={
@@ -661,10 +627,7 @@ function AppRoutes() {
         }
       />
 
-      {/* =================================================
-          NOT FOUND
-      ================================================= */}
-
+      {/* NOT FOUND */}
       <Route
         path="*"
         element={
