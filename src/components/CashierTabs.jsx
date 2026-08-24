@@ -15,10 +15,7 @@ export default function CashierTabs() {
       label: "Hisobotlar",
       path: "/cashier/reports",
     },
-    {
-      label: "Sozlamalar",
-      path: "/cashier/settings",
-    },
+
   ];
 
   return (

@@ -1,18 +1,7 @@
-import React, {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-
-import {
-  Link,
-  useLocation,
-} from "react-router-dom";
-
+import React from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-
 import { useAuth } from "../context/AuthContext";
-
 import "./Sidebar.css";
 
 // ==========================================================
@@ -20,22 +9,13 @@ import "./Sidebar.css";
 // ==========================================================
 
 const languages = [
-  {
-    code: "uz",
-    label: "UZ",
-  },
-  {
-    code: "ru",
-    label: "RU",
-  },
-  {
-    code: "en",
-    label: "EN",
-  },
+  { code: "uz", label: "UZ" },
+  { code: "ru", label: "RU" },
+  { code: "en", label: "EN" },
 ];
 
 // ==========================================================
-// ADMIN
+// ADMIN NAV
 // ==========================================================
 
 const ADMIN_NAV_ITEMS = [
@@ -46,7 +26,6 @@ const ADMIN_NAV_ITEMS = [
     key: "menu_title",
     fallback: "Menyu",
   },
-
   {
     to: "/admin/staff",
     match: "staff",
@@ -54,7 +33,6 @@ const ADMIN_NAV_ITEMS = [
     key: "staff_title",
     fallback: "Xodimlar",
   },
-
   {
     to: "/admin/reports",
     match: "reports",
@@ -69,11 +47,7 @@ const ADMIN_NAV_ITEMS = [
 // ==========================================================
 
 const NAV_ITEMS_BY_ROLE = {
-
-  // ========================================================
   // WAITER
-  // ========================================================
-
   waiter: [
     {
       to: "/waiter/tables",
@@ -82,7 +56,6 @@ const NAV_ITEMS_BY_ROLE = {
       key: "tables_title",
       fallback: "Stollar",
     },
-
     {
       to: "/waiter/order",
       match: "order",
@@ -91,7 +64,6 @@ const NAV_ITEMS_BY_ROLE = {
       fallback: "Yangi buyurtma",
     },
   ],
-
   ofitsiant: [
     {
       to: "/waiter/tables",
@@ -100,7 +72,6 @@ const NAV_ITEMS_BY_ROLE = {
       key: "tables_title",
       fallback: "Stollar",
     },
-
     {
       to: "/waiter/order",
       match: "order",
@@ -110,10 +81,7 @@ const NAV_ITEMS_BY_ROLE = {
     },
   ],
 
-  // ========================================================
   // CHEF
-  // ========================================================
-
   chef: [
     {
       to: "/chef/queue",
@@ -123,7 +91,6 @@ const NAV_ITEMS_BY_ROLE = {
       fallback: "Navbat",
     },
   ],
-
   oshpaz: [
     {
       to: "/chef/queue",
@@ -134,65 +101,9 @@ const NAV_ITEMS_BY_ROLE = {
     },
   ],
 
-  // ========================================================
-  // CASHIER
-  // ========================================================
-
-  cashier: [
-    {
-      to: "/cashier/orders",
-      match: "orders",
-      icon: "🧾",
-      key: "orders_title",
-      fallback: "Buyurtmalar",
-    },
-
-    {
-      to: "/cashier/payments",
-      match: "payments",
-      icon: "💳",
-      key: "payments_title",
-      fallback: "To'lovlar",
-    },
-
-    {
-      to: "/cashier/menu",
-      match: "menu",
-      icon: "📋",
-      key: "menu_title",
-      fallback: "Menyu",
-    },
-  ],
-
-  // ========================================================
-  // KASSIR
-  // ========================================================
-
-  kassir: [
-    {
-      to: "/cashier/orders",
-      match: "orders",
-      icon: "🧾",
-      key: "orders_title",
-      fallback: "Buyurtmalar",
-    },
-
-    {
-      to: "/cashier/payments",
-      match: "payments",
-      icon: "💳",
-      key: "payments_title",
-      fallback: "To'lovlar",
-    },
-
-    {
-      to: "/cashier/menu",
-      match: "menu",
-      icon: "📋",
-      key: "menu_title",
-      fallback: "Menyu",
-    },
-  ],
+  // CASHIER / KASSIR -> Bo'sh massiv (Menyu bo'limlari olib tashlandi)
+  cashier: [],
+  kassir: [],
 };
 
 // ==========================================================
@@ -200,165 +111,87 @@ const NAV_ITEMS_BY_ROLE = {
 // ==========================================================
 
 export default function Sidebar() {
-
-  const {
-    i18n,
-    t,
-  } = useTranslation();
-
-  const {
-    role,
-  } = useAuth();
-
+  const { i18n, t } = useTranslation();
+  const { role, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
-  // ========================================================
   // TRANSLATION
-  // ========================================================
-
-  const getItemLabel = (
-    key,
-    fallback
-  ) => {
-
+  const getItemLabel = (key, fallback) => {
     try {
-
       const translated = t(key);
-
       if (
         translated &&
         translated !== key &&
         translated.trim() !== ""
       ) {
-
         return translated;
-
       }
-
     } catch {
       // fallback
     }
-
     return fallback;
   };
 
-  // ========================================================
-  // ACTIVE
-  // ========================================================
+  // ACTIVE CHECK
+  const isItemActive = (item) => location.pathname === item.to;
 
-  const isItemActive = (
-    item
-  ) => {
-
-    return (
-      location.pathname === item.to
-    );
-
+  // CHIQISH FUNKSIYASI
+  const handleLogout = async () => {
+    try {
+      if (logout) {
+        await logout();
+      }
+      navigate("/login");
+    } catch (error) {
+      console.error("Chiqishda xatolik:", error);
+    }
   };
 
-  // ========================================================
   // LOGO
-  // ========================================================
-
-  const CafeLogo = () => {
-
-    return (
-      <div className="sb-logo">
-
-        <div
-          className={`sb-logo-icon ${
-            role === "admin"
-              ? "text-sky-500"
-              : ""
-          }`}
-        >
-          {role === "admin" ? "A" : "☕"}
-        </div>
-
-        <span className="sb-logo-text">
-          {role === "admin"
-            ? "Admin"
-            : "AI Cafe"}
-        </span>
-
+  const CafeLogo = () => (
+    <div className="sb-logo">
+      <div
+        className={`sb-logo-icon ${
+          role === "admin" ? "text-sky-500" : ""
+        }`}
+      >
+        {role === "admin" ? "A" : "☕"}
       </div>
-    );
+      <span className="sb-logo-text">
+        {role === "admin" ? "Admin" : "AI Cafe"}
+      </span>
+    </div>
+  );
 
-  };
-
-  // ========================================================
   // NAV ITEM
-  // ========================================================
-
-  const NavItem = ({
-    item,
-    mobile = false,
-  }) => {
-
-    const active =
-      isItemActive(item);
+  const NavItem = ({ item, mobile = false }) => {
+    const active = isItemActive(item);
 
     return (
-
       <Link
         to={item.to}
         className={
           mobile
-            ? `sb-nav-item-mobile ${
-                active
-                  ? "active"
-                  : ""
-              }`
-            : `sb-nav-item ${
-                active
-                  ? "active"
-                  : ""
-              }`
+            ? `sb-nav-item-mobile ${active ? "active" : ""}`
+            : `sb-nav-item ${active ? "active" : ""}`
         }
       >
-
         <span className="sb-icon-wrap">
-
-          <span className="sb-icon">
-            {item.icon}
-          </span>
-
+          <span className="sb-icon">{item.icon}</span>
         </span>
-
-        <span
-          className={
-            mobile
-              ? "sb-nav-label-mobile"
-              : "sb-nav-label"
-          }
-        >
-          {getItemLabel(
-            item.key,
-            item.fallback
-          )}
+        <span className={mobile ? "sb-nav-label-mobile" : "sb-nav-label"}>
+          {getItemLabel(item.key, item.fallback)}
         </span>
-
       </Link>
-
     );
-
   };
 
-  // ========================================================
-  // ITEMS
-  // ========================================================
-
+  // ITEMS SELECTOR
   let navItems = [];
-
   if (role === "admin") {
-
-    navItems =
-      ADMIN_NAV_ITEMS;
-
-  } else if (
-    role === "bigadmin"
-  ) {
-
+    navItems = ADMIN_NAV_ITEMS;
+  } else if (role === "bigadmin") {
     navItems = [
       {
         to: "/bigadmin/cafes",
@@ -368,69 +201,48 @@ export default function Sidebar() {
         fallback: "Kafelar",
       },
     ];
-
   } else {
-
-    navItems =
-      NAV_ITEMS_BY_ROLE[
-        role
-      ] || [];
-
+    navItems = NAV_ITEMS_BY_ROLE[role] || [];
   }
-
-  // ========================================================
-  // RETURN
-  // ========================================================
 
   return (
     <>
-
       {/* ================================================
           DESKTOP SIDEBAR
       ================================================ */}
+      <aside className="sb-sidebar-desktop flex flex-col justify-between h-screen p-4 border-r border-slate-200 bg-white">
+        {/* TEPASI: LOGO VA ROLLAR UCHUN NAVIGATSIYA */}
+        <div>
+          <CafeLogo />
+          <nav className="sb-nav-list mt-6 space-y-1">
+            {navItems.map((item) => (
+              <NavItem key={item.to} item={item} />
+            ))}
+          </nav>
+        </div>
 
-      <aside className="sb-sidebar-desktop">
-
-        <CafeLogo />
-
-        <nav className="sb-nav-list">
-
-          {navItems.map(
-            (item) => (
-
-              <NavItem
-                key={item.to}
-                item={item}
-              />
-
-            )
-          )}
-
-        </nav>
-
+        {/* ENG PASTKI QISM: CHIQISH TUGMASI */}
+        <div className="border-t border-slate-100 pt-4 mt-auto">
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-red-500 transition hover:bg-red-50 cursor-pointer"
+          >
+            <span className="text-lg">🚪</span>
+            <span>{getItemLabel("logout", "Chiqish")}</span>
+          </button>
+        </div>
       </aside>
-
 
       {/* ================================================
           MOBILE
       ================================================ */}
-
-      <nav className="sb-sidebar-mobile">
-
-        {navItems.map(
-          (item) => (
-
-            <NavItem
-              key={item.to}
-              item={item}
-              mobile
-            />
-
-          )
-        )}
-
-      </nav>
-
+      {navItems.length > 0 && (
+        <nav className="sb-sidebar-mobile">
+          {navItems.map((item) => (
+            <NavItem key={item.to} item={item} mobile />
+          ))}
+        </nav>
+      )}
     </>
   );
 }

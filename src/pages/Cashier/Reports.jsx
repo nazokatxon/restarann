@@ -12,11 +12,10 @@ export default function Reports() {
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState("Oylik"); // Kunlik, Haftalik, Oylik, Yillik
+  const [period, setPeriod] = useState("all");
 
   const periods = [
     { id: "today", label: "Kunlik" },
-    { id: "week", label: "Haftalik" },
     { id: "month", label: "Oylik" },
     { id: "year", label: "Yillik" },
   ];
@@ -43,6 +42,7 @@ export default function Reports() {
           id: item.id,
           ...item.data(),
         }));
+        console.log("🔥 FIRESTORE'DAN KELGAN BUYURTMALAR:", data);
         setOrders(data);
         setLoading(false);
       },
@@ -61,7 +61,8 @@ export default function Reports() {
   // =====================================================
   const getDate = (value) => {
     if (!value) return null;
-    if (value?.toDate) return value.toDate();
+    if (value?.toDate && typeof value.toDate === "function") return value.toDate();
+    if (value?.seconds) return new Date(value.seconds * 1000);
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? null : date;
   };
@@ -75,68 +76,107 @@ export default function Reports() {
     );
   };
 
+  // 1. Har qanday kalit ostidagi mahsulotlarni topish
   const getOrderItems = (order) => {
     if (!order) return [];
     if (Array.isArray(order.items)) return order.items;
     if (Array.isArray(order.kitchenItems)) return order.kitchenItems;
     if (Array.isArray(order.products)) return order.products;
+    if (Array.isArray(order.cart)) return order.cart;
+    if (Array.isArray(order.dishes)) return order.dishes;
     return [];
   };
 
+  // 2. Pulni 0 qilmasdan 100% topib beruvchi mantiq
   const getOrderTotal = (order) => {
-    if (order.totalAmount !== undefined && order.totalAmount !== null && !Number.isNaN(Number(order.totalAmount))) {
-      return Number(order.totalAmount);
-    }
-    if (order.total !== undefined && order.total !== null && !Number.isNaN(Number(order.total))) {
-      return Number(order.total);
-    }
-    if (order.totalPrice !== undefined && order.totalPrice !== null && !Number.isNaN(Number(order.totalPrice))) {
-      return Number(order.totalPrice);
+    if (!order) return 0;
+
+    // A) Tayyor summa maydonlaridan noldan katta bo'lganini izlaymiz
+    const possibleTotals = [
+      order.totalAmount,
+      order.total,
+      order.totalPrice,
+      order.amount,
+      order.price,
+      order.sum,
+      order.finalTotal
+    ];
+
+    for (const val of possibleTotals) {
+      const num = Number(val);
+      if (!Number.isNaN(num) && num > 0) {
+        return num;
+      }
     }
 
-    return getOrderItems(order).reduce((sum, item) => {
-      const price = Number(item.price || 0);
-      const quantity = Number(item.quantity ?? item.count ?? item.qty ?? 1);
-      return sum + price * quantity;
+    // B) Agar tayyor summa topilmasa yoki 0 bo'lsa, mahsulotlar narxini yig'amiz
+    const items = getOrderItems(order);
+    return items.reduce((sum, item) => {
+      const price = Number(
+        item.price ?? item.cost ?? item.amount ?? item.itemPrice ?? 0
+      );
+      const quantity = Number(
+        item.quantity ?? item.count ?? item.qty ?? item.amount ?? 1
+      );
+      return sum + (price > 0 ? price * quantity : 0);
     }, 0);
   };
 
   const isPaidOrder = (order) => {
     const status = String(order.status || "").trim().toLowerCase();
     const paymentStatus = String(order.paymentStatus || "").trim().toLowerCase();
+    
+    // Yaroqsiz (bekor qilingan) buyurtmalarni chiqarib tashlaymiz
+    if (status === "cancelled" || status === "canceled" || status === "rejected") {
+      return false;
+    }
+
     return (
       order.isPaid === true ||
       paymentStatus === "paid" ||
       status === "paid" ||
       status === "completed" ||
-      status === "closed"
+      status === "closed" ||
+      status === "yopildi" ||
+      status === "to'landi" ||
+      status === "new" ||
+      status === "active" ||
+      status === "pending" ||
+      status === "served" ||
+      !order.status
     );
   };
 
   const isInSelectedPeriod = (date) => {
-    if (!date) return false;
+    if (period === "all" || !date) return true;
+
     const now = new Date();
     const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    if (period === "Kunlik" || period === "today") return date >= startToday;
-    if (period === "Haftalik" || period === "week") {
+    if (period === "today") return date >= startToday;
+    
+    if (period === "week") {
       const weekStart = new Date(startToday);
-      weekStart.setDate(startToday.getDate() - 6);
+      weekStart.setDate(startToday.getDate() - 7);
       return date >= weekStart;
     }
-    if (period === "Oylik" || period === "month") {
+    
+    if (period === "month") {
       return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
     }
-    if (period === "Yillik" || period === "year") return date.getFullYear() === now.getFullYear();
+    
+    if (period === "year") {
+      return date.getFullYear() === now.getFullYear();
+    }
 
     return true;
   };
 
   const paidOrders = useMemo(() => {
     return orders.filter((order) => {
-      if (!isPaidOrder(order)) return false;
+      const paidCheck = isPaidOrder(order);
       const orderDate = getOrderDate(order);
-      return isInSelectedPeriod(orderDate);
+      return paidCheck && isInSelectedPeriod(orderDate);
     });
   }, [orders, period]);
 
@@ -172,7 +212,6 @@ export default function Reports() {
     return { totalRevenue, cashRevenue, cardRevenue, clickRevenue, orderCount, averageCheck };
   }, [paidOrders]);
 
-  // Top 5 taomlarni hisoblash (Dinamik)
   const topDishes = useMemo(() => {
     const dishMap = {};
 
@@ -181,7 +220,7 @@ export default function Reports() {
       items.forEach((item) => {
         const name = item.name || item.title || "Noma'lum taom";
         const qty = Number(item.quantity ?? item.count ?? item.qty ?? 1);
-        const price = Number(item.price || 0);
+        const price = Number(item.price ?? item.cost ?? item.amount ?? 0);
 
         if (!dishMap[name]) {
           dishMap[name] = { count: 0, total: 0 };
@@ -197,7 +236,6 @@ export default function Reports() {
       .slice(0, 5);
   }, [paidOrders]);
 
-  // Formatterlar
   const formatMoney = (amount) => `${Number(amount || 0).toLocaleString("uz-UZ")} so'm`;
   const formatDate = (value) => {
     const date = getDate(value);
@@ -233,7 +271,6 @@ export default function Reports() {
   return (
     <div className="p-8 bg-[#f8fafc] min-h-screen font-sans text-[#243447]">
       <main className="max-w-[1250px] mx-auto">
-        {/* Yuqori qism: Sarlavha va Filtrlar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-extrabold text-slate-800">Kassa Hisobotlari</h1>
@@ -244,9 +281,9 @@ export default function Reports() {
             {periods.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setPeriod(item.label)}
+                onClick={() => setPeriod(item.id)}
                 className={`px-5 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer ${
-                  period === item.label
+                  period === item.id
                     ? "bg-white text-slate-800 shadow-sm font-bold"
                     : "text-slate-500 hover:text-slate-700"
                 }`}
@@ -257,7 +294,6 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* Yuqori KPI kartalar */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-6 rounded-3xl border-l-4 border-l-emerald-500 shadow-sm border border-slate-100">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">JAMI TUSHUM</p>
@@ -287,7 +323,6 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* Nisbatlar va Top taomlar */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between">
             <div>
@@ -344,7 +379,6 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* Buyurtmalar jadvali */}
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-6 py-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>

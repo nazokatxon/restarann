@@ -20,13 +20,35 @@ export default function Receipts() {
           ...item.data(),
         }));
 
-        const paidOrders = data.filter(
-          (o) =>
-            o.isPaid ||
-            o.status === "completed" ||
-            o.status === "closed" ||
-            o.status === "paid"
-        );
+        // Barcha yopilgan va to'lov qilingan buyurtmalarni ushlab olish
+        const paidOrders = data.filter((o) => {
+          const statusStr = String(o.status || "").toLowerCase();
+          const payStatusStr = String(o.paymentStatus || "").toLowerCase();
+
+          return (
+            o.isPaid === true ||
+            payStatusStr === "paid" ||
+            statusStr === "completed" ||
+            statusStr === "closed" ||
+            statusStr === "paid" ||
+            statusStr === "yopilgan" ||
+            statusStr === "tolangan" ||
+            Boolean(o.paidAt) ||
+            Boolean(o.closedAt)
+          );
+        });
+
+        // Eng so'nggi yopilgan cheklarni tepaga saralash
+        paidOrders.sort((a, b) => {
+          const getTime = (item) => {
+            const t = item.paidAt || item.closedAt || item.updatedAt || item.createdAt;
+            if (!t) return 0;
+            if (t.seconds) return t.seconds * 1000;
+            if (t.toDate) return t.toDate().getTime();
+            return new Date(t).getTime() || 0;
+          };
+          return getTime(b) - getTime(a);
+        });
 
         setOrders(paidOrders);
         setLoading(false);
@@ -55,7 +77,7 @@ export default function Receipts() {
       setSelectedReceipt(order);
       setTimeout(() => {
         window.print();
-      }, 100);
+      }, 150);
     } else {
       window.print();
     }
@@ -65,9 +87,13 @@ export default function Receipts() {
     return `${Number(amount || 0).toLocaleString("uz-UZ")} so'm`;
   };
 
-  const formatDate = (dateValue) => {
+  const formatDate = (order) => {
+    const dateValue =
+      order.paidAt || order.closedAt || order.updatedAt || order.createdAt;
     if (!dateValue) return "-";
     const date = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
+    if (isNaN(date.getTime())) return "-";
+
     return date.toLocaleString("uz-UZ", {
       day: "2-digit",
       month: "2-digit",
@@ -174,33 +200,35 @@ export default function Receipts() {
                       #{order.id.slice(-6).toUpperCase()}
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-slate-600">
-                      {formatDate(order.paidAt || order.createdAt)}
+                      {formatDate(order)}
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-800">
                       № {order.tableNumber || order.table || "-"}
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex px-3 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-600">
-                        {order.paymentMethod || "Karta orqali"}
+                        {order.paymentMethod || order.paymentType || "Karta orqali"}
                       </span>
                     </td>
                     <td className="px-6 py-4 font-black text-slate-800">
-                      {formatMoney(order.total || order.totalPrice || 0)}
+                      {formatMoney(
+                        order.total || order.totalPrice || order.totalAmount || 0
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="inline-flex items-center gap-2">
                         {/* Ko'rish Tugmasi */}
                         <button
                           onClick={() => setSelectedReceipt(order)}
-                          className="p-2.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition inline-flex items-center gap-1.5 text-xs font-bold"
+                          className="p-2.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition inline-flex items-center gap-1.5 text-xs font-bold cursor-pointer"
                         >
                           <FiEye className="text-base" /> Ko'rish
                         </button>
 
-                        {/* Jadvalning o'zida ham Chop Etish Tugmasi */}
+                        {/* Chop Etish Tugmasi */}
                         <button
                           onClick={() => handlePrint(order)}
-                          className="p-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition inline-flex items-center gap-1.5 text-xs font-bold shadow-sm"
+                          className="p-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition inline-flex items-center gap-1.5 text-xs font-bold shadow-sm cursor-pointer"
                         >
                           <FiPrinter className="text-base" /> Chop etish
                         </button>
@@ -225,7 +253,7 @@ export default function Receipts() {
               </h3>
               <button
                 onClick={() => setSelectedReceipt(null)}
-                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition"
+                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition cursor-pointer"
               >
                 <FiX className="text-xl" />
               </button>
@@ -253,11 +281,7 @@ export default function Receipts() {
                 </div>
                 <div className="flex justify-between">
                   <span>Sana:</span>
-                  <span>
-                    {formatDate(
-                      selectedReceipt.paidAt || selectedReceipt.createdAt
-                    )}
-                  </span>
+                  <span>{formatDate(selectedReceipt)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Stol:</span>
@@ -274,11 +298,12 @@ export default function Receipts() {
                 {(
                   selectedReceipt.items ||
                   selectedReceipt.products ||
+                  selectedReceipt.kitchenItems ||
                   []
                 ).map((item, idx) => (
                   <div key={idx} className="flex justify-between">
                     <span>
-                      {item.name} x{item.quantity || item.count || 1}
+                      {item.name || item.title} x{item.quantity || item.count || 1}
                     </span>
                     <span className="font-bold">
                       {formatMoney(
@@ -297,14 +322,19 @@ export default function Receipts() {
                   <span>JAMI:</span>
                   <span>
                     {formatMoney(
-                      selectedReceipt.total || selectedReceipt.totalPrice || 0
+                      selectedReceipt.total ||
+                        selectedReceipt.totalPrice ||
+                        selectedReceipt.totalAmount ||
+                        0
                     )}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-500">
                   <span>To'lov turi:</span>
                   <span>
-                    {selectedReceipt.paymentMethod || "Karta orqali"}
+                    {selectedReceipt.paymentMethod ||
+                      selectedReceipt.paymentType ||
+                      "Karta orqali"}
                   </span>
                 </div>
               </div>
@@ -318,7 +348,7 @@ export default function Receipts() {
             <div className="flex gap-3 pt-4 border-t border-slate-100 print:hidden">
               <button
                 onClick={() => handlePrint()}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-100 transition"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-100 transition cursor-pointer"
               >
                 <FiPrinter className="text-lg" /> Chop etish (Print)
               </button>

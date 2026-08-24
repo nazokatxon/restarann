@@ -13,6 +13,7 @@ import { useAuth } from "../../context/AuthContext";
 
 export default function Buyurtma() {
   const { user } = useAuth();
+  console.log("user.cafeId:", user?.cafeId);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -20,15 +21,26 @@ export default function Buyurtma() {
   const [paymentMethod, setPaymentMethod] = useState("Naqd");
   const [submitting, setSubmitting] = useState(false);
 
-  // Kafe ichidagi stollar ro'yxati (10 ta stol)
   const totalTables = Array.from({ length: 10 }, (_, i) => i + 1);
 
   const formatPrice = (price) =>
     new Intl.NumberFormat("uz-UZ").format(price || 0) + " so'm";
 
-  // =========================
+  // Buyurtma summasini xavfsiz hisoblash
+  const calculateOrderTotal = (order) => {
+    if (!order) return 0;
+    const directTotal = Number(order.total || order.totalAmount || order.totalPrice || 0);
+    if (directTotal > 0) return directTotal;
+
+    const itemsList = order.items || order.kitchenItems || [];
+    return itemsList.reduce((sum, item) => {
+      const price = Number(item.price || item.cost || 0);
+      const qty = Number(item.quantity || item.count || item.qty || 1);
+      return sum + price * qty;
+    }, 0);
+  };
+
   // FIRESTORE'DAN OCHIQ BUYURTMALARNI OLISH
-  // =========================
   useEffect(() => {
     if (!user) {
       setLoading(false);
@@ -37,23 +49,31 @@ export default function Buyurtma() {
 
     setLoading(true);
 
-    // Status "closed" bo'lmagan barcha aktiv buyurtmalarni olish
     const ordersRef = collection(db, "orders");
     const q = user?.cafeId
-      ? query(
-          ordersRef,
-          where("cafeId", "==", user.cafeId),
-          where("status", "!=", "closed")
-        )
-      : query(ordersRef, where("status", "!=", "closed"));
+      ? query(ordersRef, where("cafeId", "==", user.cafeId))
+      : query(ordersRef);
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
         const activeOrders = [];
-        snapshot.forEach((doc) => {
-          activeOrders.push({ id: doc.id, ...doc.data() });
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          const status = String(data.status || "").toLowerCase().trim();
+
+          // Yopilmagan va to'lanmagan barsha faol buyurtmalarni kiritamiz
+          if (
+            status !== "closed" &&
+            status !== "paid" &&
+            status !== "yopildi" &&
+            status !== "cancelled" &&
+            status !== "canceled"
+          ) {
+            activeOrders.push({ id: docSnap.id, ...data });
+          }
         });
+
         setOrders(activeOrders);
         setLoading(false);
       },
@@ -66,14 +86,16 @@ export default function Buyurtma() {
     return () => unsubscribe();
   }, [user]);
 
-  // Tanlangan stolga tegishli buyurtmani topish
+  // STOL BUYURTMASINI ANIQ QILIB TOPISH (Number va String shakllarni inobatga oladi)
   const getTableOrder = (tableNum) => {
-    return orders.find(
-      (o) => Number(o.tableNumber || o.table) === tableNum
-    );
+    return orders.find((o) => {
+      const orderTable = o.tableNumber ?? o.table ?? o.tableNo ?? o.stoli;
+      if (orderTable === undefined || orderTable === null) return false;
+      return Number(orderTable) === Number(tableNum);
+    });
   };
 
-  // To'lovni amalga oshirib, stolni yopish (HISOBOTGA TO'G'RI TUSHISHI UCHUN)
+  // To'lovni amalga oshirish va stolni yopish
   const handleCloseTable = async () => {
     if (!selectedOrder) return;
 
@@ -81,27 +103,25 @@ export default function Buyurtma() {
       setSubmitting(true);
       const orderRef = doc(db, "orders", selectedOrder.id);
 
-      // Jami summani aniqlash
-      const totalAmount = Number(
-        selectedOrder.total ||
-          selectedOrder.totalAmount ||
-          selectedOrder.totalPrice ||
-          0
-      );
+      const finalTotal = calculateOrderTotal(selectedOrder);
 
       await updateDoc(orderRef, {
         status: "closed",
+        kitchenStatus: "completed",
         paymentStatus: "paid",
-        paymentMethod: paymentMethod, // 'Naqd', 'Karta' yoki 'Click'
-        totalAmount: totalAmount,
-        total: totalAmount,
+        isPaid: true,
+        paymentMethod: paymentMethod,
+        totalAmount: finalTotal,
+        totalPrice: finalTotal,
+        total: finalTotal,
+        paidAt: serverTimestamp(),
         closedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
       setShowPayment(false);
       setSelectedOrder(null);
-      alert("To'lov qabul qilindi. Stol yopildi va hisobotga o'tdi!");
+      alert("To'lov qabul qilindi. Stol yopildi va cheklarga tushdi!");
     } catch (error) {
       console.error("Stolni yopishda xatolik:", error);
       alert("Xatolik yuz berdi!");
@@ -112,15 +132,13 @@ export default function Buyurtma() {
 
   return (
     <div className="min-h-[calc(100vh-68px)] bg-slate-100 p-6">
-      {/* BOSH QISM */}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-900">
             Stollar (Kassa)
           </h1>
           <p className="text-sm text-slate-500">
-            To'lovni amalga oshirish va stolni yopish uchun aktiv stol ustiga
-            bosing
+            To'lovni amalga oshirish va stolni yopish uchun aktiv stol ustiga bosing
           </p>
         </div>
       </div>
@@ -130,18 +148,17 @@ export default function Buyurtma() {
           Stollar yuklanmoqda...
         </div>
       ) : (
-        /* STOLLAR SETKASI (GRID) */
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {totalTables.map((tableNum) => {
             const order = getTableOrder(tableNum);
             const isOccupied = !!order;
 
-            // Barcha taomlar yetkazilgan bo'lsa (TO'G'RILANDI)
             const items = order?.items || order?.kitchenItems || [];
             const allDelivered =
               order?.kitchenStatus === "ready" ||
               order?.kitchenStatus === "delivered" ||
               order?.status === "delivered" ||
+              order?.status === "yetkazildi" ||
               (items.length > 0 &&
                 items.every(
                   (i) =>
@@ -176,8 +193,13 @@ export default function Buyurtma() {
                     ? "Bo'sh"
                     : allDelivered
                     ? "Yetkazildi (Hisob kutilmoqda)"
-                    : "Tayyorlanmoqda"}
+                    : "Band (Tayyorlanmoqda)"}
                 </div>
+                {isOccupied && (
+                  <div className="mt-2 text-sm font-extrabold text-slate-900">
+                    {formatPrice(calculateOrderTotal(order))}
+                  </div>
+                )}
               </button>
             );
           })}
@@ -203,7 +225,6 @@ export default function Buyurtma() {
               </button>
             </div>
 
-            {/* OVQATLAR RO'YXATI */}
             <div className="max-h-60 space-y-2.5 overflow-y-auto pr-1">
               {(
                 selectedOrder.items ||
@@ -219,6 +240,9 @@ export default function Buyurtma() {
                   item.status === "ready" ||
                   item.status === "delivered";
 
+                const quantity = item.quantity || item.count || item.qty || 1;
+                const itemTotal = Number(item.price || item.cost || 0) * quantity;
+
                 return (
                   <div
                     key={idx}
@@ -228,11 +252,11 @@ export default function Buyurtma() {
                       <div className="font-bold text-slate-800">
                         {item.name || item.title}{" "}
                         <span className="text-slate-400">
-                          × {item.quantity || item.count || 1}
+                          × {quantity}
                         </span>
                       </div>
                       <div className="text-xs font-semibold text-slate-500">
-                        {formatPrice(item.price)}
+                        {formatPrice(itemTotal)}
                       </div>
                     </div>
                     <span
@@ -249,16 +273,11 @@ export default function Buyurtma() {
               })}
             </div>
 
-            {/* JAMI SUMMA VA TO'LOVGA O'TISH TUGMASI */}
             <div className="mt-6 border-t border-slate-100 pt-4">
               <div className="mb-5 flex items-center justify-between">
                 <span className="font-bold text-slate-500">Jami:</span>
                 <span className="text-2xl font-black text-slate-900">
-                  {formatPrice(
-                    selectedOrder.total ||
-                      selectedOrder.totalAmount ||
-                      selectedOrder.totalPrice
-                  )}
+                  {formatPrice(calculateOrderTotal(selectedOrder))}
                 </span>
               </div>
 
@@ -310,11 +329,7 @@ export default function Buyurtma() {
                 To'lanadigan summa:
               </span>
               <span className="text-xl font-black text-slate-900">
-                {formatPrice(
-                  selectedOrder?.total ||
-                    selectedOrder?.totalAmount ||
-                    selectedOrder?.totalPrice
-                )}
+                {formatPrice(calculateOrderTotal(selectedOrder))}
               </span>
             </div>
 

@@ -19,25 +19,13 @@ export default function TableGrid() {
 
   const [tables, setTables] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tablesLoading, setTablesLoading] = useState(true);
+  const [ordersLoading, setOrdersLoading] = useState(true);
 
-  const [selectedTable, setSelectedTable] = useState(null);
+  const [selectedTableNumber, setSelectedTableNumber] = useState(null);
   const [logoutOpen, setLogoutOpen] = useState(false);
 
-  // =====================================================
-  // FIRESTORE
-  // =====================================================
-
   useEffect(() => {
-    let tablesLoaded = false;
-    let ordersLoaded = false;
-
-    const checkLoading = () => {
-      if (tablesLoaded && ordersLoaded) {
-        setLoading(false);
-      }
-    };
-
     const tablesQuery = query(collection(db, "tables"));
     const ordersQuery = query(collection(db, "orders"));
 
@@ -54,13 +42,12 @@ export default function TableGrid() {
         );
 
         setTables(tableList);
-        tablesLoaded = true;
-        checkLoading();
+        setTablesLoading(false);
       },
       (error) => {
         console.error("Tables error:", error);
         toast.error("Stollarni yuklashda xatolik!");
-        setLoading(false);
+        setTablesLoading(false);
       }
     );
 
@@ -73,12 +60,11 @@ export default function TableGrid() {
         }));
 
         setOrders(orderList);
-        ordersLoaded = true;
-        checkLoading();
+        setOrdersLoading(false);
       },
       (error) => {
         console.error("Orders error:", error);
-        setLoading(false);
+        setOrdersLoading(false);
       }
     );
 
@@ -88,10 +74,6 @@ export default function TableGrid() {
     };
   }, []);
 
-  // =====================================================
-  // HELPER FUNKSIYALAR
-  // =====================================================
-
   const getOrderItems = useCallback((order) => {
     if (!order) return [];
     if (Array.isArray(order.kitchenItems)) return order.kitchenItems;
@@ -100,48 +82,73 @@ export default function TableGrid() {
     return [];
   }, []);
 
-  const getActiveOrder = useCallback((tableNumber) => {
-    return orders.find((order) => {
-      const orderTable =
-        order.tableNumber ??
-        order.table ??
-        order.tableNo ??
-        order.tableId;
+  // Mos keladigan aktiv buyurtmani aniqroq topish
+  const getActiveOrder = useCallback(
+    (tableNumber) => {
+      return orders.find((order) => {
+        const orderTable = String(
+          order.tableNumber ??
+          order.table ??
+          order.tableNo ??
+          order.tableId ??
+          ""
+        ).trim();
 
-      const sameTable = String(orderTable) === String(tableNumber);
-      const closed =
-        order.status === "closed" ||
-        order.status === "completed" ||
-        order.kitchenStatus === "closed";
+        const sameTable = orderTable === String(tableNumber).trim();
+        const st = String(order.status || "").toLowerCase();
+        const closed =
+          st === "closed" ||
+          st === "completed" ||
+          st === "paid" ||
+          st === "yopildi" ||
+          order.kitchenStatus === "closed";
 
-      return sameTable && !closed;
-    });
-  }, [orders]);
+        return sameTable && !closed;
+      });
+    },
+    [orders]
+  );
 
-  const getTableStatus = useCallback((tableNumber) => {
-    const activeOrder = getActiveOrder(tableNumber);
-
-    if (!activeOrder) return "empty";
-
-    const items = getOrderItems(activeOrder);
-    if (!items.length) return "occupied";
-
-    const allDelivered = items.every(
-      (item) => item.waiterTaken === true || item.isDelivered === true
+  // Taom va stol holatlarini tekshiruvchi yordamchi funksiyalar
+  const checkIsReady = (item) => {
+    return (
+      item.readyForWaiter === true ||
+      item.isReady === true ||
+      item.status === "ready"
     );
-    if (allDelivered) return "delivered";
+  };
 
-    const hasReadyFood = items.some(
-      (item) =>
-        (item.readyForWaiter === true || item.isReady === true) &&
-        item.waiterTaken !== true &&
-        item.isDelivered !== true
+  const checkIsDelivered = (item) => {
+    return (
+      item.waiterTaken === true ||
+      item.isDelivered === true ||
+      item.delivered === true ||
+      item.status === "delivered"
     );
+  };
 
-    if (hasReadyFood) return "ready";
+  const getTableStatus = useCallback(
+    (tableNumber) => {
+      const activeOrder = getActiveOrder(tableNumber);
 
-    return "occupied";
-  }, [getActiveOrder, getOrderItems]);
+      if (!activeOrder) return "empty";
+
+      const items = getOrderItems(activeOrder);
+      if (!items.length) return "occupied";
+
+      const allDelivered = items.every((item) => checkIsDelivered(item));
+      if (allDelivered) return "delivered";
+
+      const hasReadyFood = items.some(
+        (item) => checkIsReady(item) && !checkIsDelivered(item)
+      );
+
+      if (hasReadyFood) return "ready";
+
+      return "occupied";
+    },
+    [getActiveOrder, getOrderItems]
+  );
 
   const formatTime = (value) => {
     if (!value) return "";
@@ -158,19 +165,16 @@ export default function TableGrid() {
     }
   };
 
-  // =====================================================
-  // ACTIONS
-  // =====================================================
-
   const handleTableClick = (table) => {
     const order = getActiveOrder(table.number);
     if (!order) {
       navigate(`/waiter/order?table=${table.number}`);
       return;
     }
-    setSelectedTable(table);
+    setSelectedTableNumber(table.number);
   };
 
+  // Taom yetkazilganini tasdiqlash funksiyasi
   const markFoodDelivered = async (order, index) => {
     try {
       let fieldName = "";
@@ -196,24 +200,17 @@ export default function TableGrid() {
         return;
       }
 
-      const ready = item.readyForWaiter === true || item.isReady === true;
-      if (!ready) {
-        toast.warning("Bu taom hali tayyor emas!");
-        return;
-      }
-
       items[index] = {
         ...item,
         waiterTaken: true,
         isDelivered: true,
+        delivered: true,
+        status: "delivered",
         deliveryStatus: "delivered",
         deliveredAt: new Date().toISOString(),
       };
 
-      const allDelivered = items.every(
-        (currentItem) =>
-          currentItem.waiterTaken === true || currentItem.isDelivered === true
-      );
+      const allDelivered = items.every((currentItem) => checkIsDelivered(currentItem));
 
       await updateDoc(doc(db, "orders", order.id), {
         [fieldName]: items,
@@ -242,11 +239,13 @@ export default function TableGrid() {
   };
 
   const selectedOrder = useMemo(() => {
-    if (!selectedTable) return null;
-    return getActiveOrder(selectedTable.number);
-  }, [selectedTable, getActiveOrder]);
+    if (!selectedTableNumber) return null;
+    return getActiveOrder(selectedTableNumber);
+  }, [selectedTableNumber, getActiveOrder]);
 
-  if (loading) {
+  const isLoading = tablesLoading || ordersLoading;
+
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[#f7f4ef] flex items-center justify-center">
         <div className="text-center">
@@ -340,7 +339,7 @@ export default function TableGrid() {
                   : status === "occupied"
                   ? "bg-[#fffdf8] border-[#eab126] shadow-[0_5px_20px_rgba(180,120,0,0.08)]"
                   : status === "ready"
-                  ? "bg-blue-50 border-blue-500 shadow-[0_5px_20px_rgba(37,99,235,0.15)]"
+                  ? "bg-blue-50 border-blue-500 shadow-[0_5px_20px_rgba(37,99,235,0.15)] animate-pulse"
                   : "bg-green-50 border-green-400";
 
               const statusText =
@@ -392,13 +391,13 @@ export default function TableGrid() {
       </main>
 
       {/* TABLE DETAIL MODAL */}
-      {selectedTable && (
+      {selectedTableNumber && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-xl max-h-[90vh] bg-white rounded-2xl shadow-2xl p-6 flex flex-col">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h2 className="text-xl font-black text-[#273444]">
-                  Stol № {selectedTable.number}
+                  Stol № {selectedTableNumber}
                 </h2>
                 <p className="text-sm text-gray-400 mt-1">
                   Buyurtma tafsilotlari
@@ -406,7 +405,7 @@ export default function TableGrid() {
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedTable(null)}
+                onClick={() => setSelectedTableNumber(null)}
                 className="w-9 h-9 rounded-lg hover:bg-gray-100 text-gray-500 text-lg cursor-pointer"
               >
                 ✕
@@ -428,10 +427,7 @@ export default function TableGrid() {
 
                 const allDelivered =
                   items.length > 0 &&
-                  items.every(
-                    (item) =>
-                      item.waiterTaken === true || item.isDelivered === true
-                  );
+                  items.every((item) => checkIsDelivered(item));
 
                 return (
                   <>
@@ -455,10 +451,8 @@ export default function TableGrid() {
 
                     <div className="flex-1 overflow-y-auto space-y-3 border-y border-gray-100 py-4">
                       {items.map((item, index) => {
-                        const ready =
-                          item.readyForWaiter === true || item.isReady === true;
-                        const delivered =
-                          item.waiterTaken === true || item.isDelivered === true;
+                        const ready = checkIsReady(item);
+                        const delivered = checkIsDelivered(item);
                         const quantity = item.quantity || item.count || 1;
                         const price = Number(item.price || 0);
 
@@ -479,7 +473,7 @@ export default function TableGrid() {
                                   {item.name ||
                                     item.title ||
                                     item.productName ||
-                                    "Taom"}
+                                    "Taom"}{" "}
                                   <span className="text-gray-400 ml-1">
                                     × {quantity}
                                   </span>
@@ -530,7 +524,7 @@ export default function TableGrid() {
                         type="button"
                         onClick={() =>
                           navigate(
-                            `/waiter/order?table=${selectedTable.number}&orderId=${selectedOrder.id}`
+                            `/waiter/order?table=${selectedTableNumber}&orderId=${selectedOrder.id}`
                           )
                         }
                         className="w-full bg-[#d97706] hover:bg-[#c76600] text-white py-3 rounded-xl font-bold text-sm cursor-pointer shadow-md transition active:scale-[0.99]"
