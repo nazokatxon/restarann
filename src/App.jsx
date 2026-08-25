@@ -43,6 +43,22 @@ import "react-toastify/dist/ReactToastify.css";
 import "./index.css";
 
 // =====================================================
+// OSHXONA (KITCHEN) ROLLARI
+// Yangi yo'nalish qo'shmoqchi bo'lsangiz, faqat shu massivga
+// qo'shing — RoleRedirect va Route ikkalasi ham shundan foydalanadi.
+// =====================================================
+
+const KITCHEN_ROLES = [
+  "chef",
+  "oshpaz",
+  "shashlikchi",
+  "pishiriqchi",
+  "ichimlikchi",
+  "somsachi",
+  "taomchi",
+];
+
+// =====================================================
 // PROTECTED ROUTE
 // =====================================================
 
@@ -152,15 +168,6 @@ function RoleRedirect() {
         />
       );
 
-    case "chef":
-    case "oshpaz":
-      return (
-        <Navigate
-          to="/chef/queue"
-          replace
-        />
-      );
-
     case "cashier":
     case "kassir":
       return (
@@ -171,6 +178,17 @@ function RoleRedirect() {
       );
 
     default:
+      // Barcha oshxona rollari (chef, oshpaz, shashlikchi,
+      // pishiriqchi, ichimlikchi, somsachi, taomchi) shu yerga tushadi
+      if (KITCHEN_ROLES.includes(role)) {
+        return (
+          <Navigate
+            to="/chef/queue"
+            replace
+          />
+        );
+      }
+
       return (
         <Navigate
           to="/login"
@@ -504,15 +522,14 @@ function AppRoutes() {
         }
       />
 
-      {/* CHEF */}
+      {/* CHEF / OSHXONA — barcha yo'nalishlar (shashlikchi, pishiriqchi,
+          ichimlikchi, somsachi, taomchi) shu bitta sahifaga kiradi,
+          KitchenQueue.jsx ichida role bo'yicha avtomatik filtrlanadi */}
       <Route
         path="/chef/queue"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "chef",
-              "oshpaz",
-            ]}
+            allowedRoles={KITCHEN_ROLES}
           >
             <KitchenQueue />
           </ProtectedRoute>

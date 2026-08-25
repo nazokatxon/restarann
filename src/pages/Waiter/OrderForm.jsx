@@ -11,10 +11,29 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { db } from "../../firebase/config.js";
+import { useAuth } from "../../context/AuthContext";
+
+// =========================================================
+// MENYU CATEGORY -> OSHXONA (KITCHEN) ROLI MOSLASHTIRISH
+// =========================================================
+
+const CATEGORY_TO_KITCHEN_TYPE = {
+  shashlik: "shashlikchi",
+  desert: "pishiriqchi",
+  ichimlik: "ichimlikchi",
+  somsa: "somsachi",
+  asosiy: "taomchi",
+};
+
+function resolveKitchenType(product) {
+  const category = String(product.category || "").toLowerCase();
+  return CATEGORY_TO_KITCHEN_TYPE[category] || product.kitchenType || "umumiy";
+}
 
 export default function OrderForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
 
   const tableNumber = searchParams.get("table");
   const orderId = searchParams.get("orderId");
@@ -27,6 +46,9 @@ export default function OrderForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+
+  // Buyurtma egasi (ochilgan buyurtmani tahrirlashda ma'lum bo'ladi)
+  const [orderOwnerId, setOrderOwnerId] = useState(null);
 
   // =========================================================
   // PRODUCTLARNI YUKLASH (Race condition tuzatildi)
@@ -53,6 +75,17 @@ export default function OrderForm() {
 
           if (orderSnapshot.exists() && isMounted) {
             const orderData = orderSnapshot.data();
+
+            // Buyurtma boshqa ofitsiantga tegishli bo'lsa, tahrirlashga
+            // ruxsat bermaymiz (himoya sifatida frontendda ham tekshiramiz)
+            const ownerId = orderData.waiterId || null;
+            setOrderOwnerId(ownerId);
+
+            if (ownerId && user?.uid && ownerId !== user.uid) {
+              toast.error("Bu buyurtma boshqa ofitsiantga tegishli!");
+              navigate("/waiter/tables");
+              return;
+            }
 
             setSelectedTable(
               Number(
@@ -88,7 +121,7 @@ export default function OrderForm() {
     return () => {
       isMounted = false;
     };
-  }, [orderId, tableNumber]);
+  }, [orderId, tableNumber, navigate, user]);
 
   // =========================================================
   // FILTER PRODUCT
@@ -144,6 +177,7 @@ export default function OrderForm() {
           waiterTaken: false,
           isDelivered: false,
           category: product.category || "",
+          kitchenType: resolveKitchenType(product),
           image: product.image || product.imageUrl || "",
         },
       ];
@@ -206,6 +240,12 @@ export default function OrderForm() {
       return;
     }
 
+    // Himoya: boshqa ofitsiantning buyurtmasini saqlab qo'yishga urinish
+    if (orderId && orderOwnerId && user?.uid && orderOwnerId !== user.uid) {
+      toast.error("Bu buyurtma boshqa ofitsiantga tegishli!");
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -217,6 +257,8 @@ export default function OrderForm() {
         price: Number(item.price || 0),
         total: Number(item.price || 0) * Number(item.quantity || 1),
         note: item.note || "",
+        category: item.category || "",
+        kitchenType: item.kitchenType || "umumiy",
       }));
 
       const orderData = {
@@ -230,18 +272,23 @@ export default function OrderForm() {
       };
 
       if (orderId) {
+        // Mavjud buyurtmani yangilashda waiterId o'zgartirilmaydi —
+        // egasi kim bo'lsa, o'sha bo'lib qoladi.
         await updateDoc(doc(db, "orders", orderId), {
           ...orderData,
           kitchenStatus: "pending",
         });
         toast.success("✅ Buyurtma muvaffaqiyatli yangilandi!");
       } else {
+        // Yangi buyurtma — kim ochgan bo'lsa, o'sha egasi bo'lib yoziladi
         await addDoc(collection(db, "orders"), {
           ...orderData,
           status: "active",
           kitchenStatus: "pending",
           paymentStatus: "pending",
           isPaid: false,
+          waiterId: user?.uid || null,
+          waiterName: user?.displayName || user?.email || "Nomalum",
           createdAt: serverTimestamp(),
         });
         toast.success("✅ Buyurtma muvaffaqiyatli oshxonaga yuborildi!");

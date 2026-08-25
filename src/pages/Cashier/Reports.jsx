@@ -6,6 +6,32 @@ import { toast } from "react-toastify";
 import { db } from "../../firebase/config.js";
 import { useAuth } from "../../context/AuthContext";
 
+// =========================================================
+// BUYURTMA TURI (Stol / Dastavka / Saboy) UCHUN YORDAMCHI
+// =========================================================
+
+function getOrderTypeInfo(order) {
+  const type = order.orderType || "stol";
+
+  if (type === "dastavka") {
+    return { key: "dastavka", label: "🚚 Dastavka", badgeClass: "bg-blue-50 text-blue-700" };
+  }
+
+  if (type === "saboy") {
+    return { key: "saboy", label: "🛍️ Saboy", badgeClass: "bg-purple-50 text-purple-700" };
+  }
+
+  return { key: "stol", label: "🪑 Stol", badgeClass: "bg-amber-50 text-amber-700" };
+}
+
+function getOrderLocationLabel(order) {
+  const type = order.orderType || "stol";
+  if (type === "dastavka" || type === "saboy") {
+    return order.customerName || "Mijoz";
+  }
+  return `№ ${order.tableNumber ?? order.table ?? order.tableNo ?? "-"}`;
+}
+
 export default function Reports() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -212,6 +238,23 @@ export default function Reports() {
     return { totalRevenue, cashRevenue, cardRevenue, clickRevenue, orderCount, averageCheck };
   }, [paidOrders]);
 
+  // Buyurtma turi (Stol / Dastavka / Saboy) bo'yicha statistika
+  const typeStats = useMemo(() => {
+    const base = {
+      stol: { count: 0, revenue: 0, label: "🪑 Stol" },
+      dastavka: { count: 0, revenue: 0, label: "🚚 Dastavka" },
+      saboy: { count: 0, revenue: 0, label: "🛍️ Saboy" },
+    };
+
+    paidOrders.forEach((order) => {
+      const key = getOrderTypeInfo(order).key;
+      base[key].count += 1;
+      base[key].revenue += getOrderTotal(order);
+    });
+
+    return base;
+  }, [paidOrders]);
+
   const topDishes = useMemo(() => {
     const dishMap = {};
 
@@ -323,6 +366,54 @@ export default function Reports() {
           </div>
         </div>
 
+        {/* BUYURTMA TURLARI (STOL / DASTAVKA / SABOY) STATISTIKASI */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-3xl border-l-4 border-l-amber-400 shadow-sm border border-slate-100">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              {typeStats.stol.label}
+            </p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-slate-800">
+                {typeStats.stol.count}
+              </span>
+              <span className="text-sm font-medium text-slate-400">ta buyurtma</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-3 font-medium">
+              Tushum: <span className="font-bold text-slate-700">{formatMoney(typeStats.stol.revenue)}</span>
+            </p>
+          </div>
+
+          <div className="bg-white p-6 rounded-3xl border-l-4 border-l-blue-500 shadow-sm border border-slate-100">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              {typeStats.dastavka.label}
+            </p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-slate-800">
+                {typeStats.dastavka.count}
+              </span>
+              <span className="text-sm font-medium text-slate-400">ta buyurtma</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-3 font-medium">
+              Tushum: <span className="font-bold text-slate-700">{formatMoney(typeStats.dastavka.revenue)}</span>
+            </p>
+          </div>
+
+          <div className="bg-white p-6 rounded-3xl border-l-4 border-l-purple-500 shadow-sm border border-slate-100">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              {typeStats.saboy.label}
+            </p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-slate-800">
+                {typeStats.saboy.count}
+              </span>
+              <span className="text-sm font-medium text-slate-400">ta buyurtma</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-3 font-medium">
+              Tushum: <span className="font-bold text-slate-700">{formatMoney(typeStats.saboy.revenue)}</span>
+            </p>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between">
             <div>
@@ -398,11 +489,12 @@ export default function Reports() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[750px]">
+              <table className="w-full min-w-[800px]">
                 <thead>
                   <tr className="bg-slate-50/80 text-left">
                     <th className="px-6 py-4 text-xs font-bold text-slate-400">Vaqt</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-400">Stol</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400">Turi</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400">Stol / Mijoz</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-400">Tarkib</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-400">To'lov turi</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-400">Jami</th>
@@ -415,8 +507,8 @@ export default function Reports() {
                     .sort((a, b) => (getOrderDate(b)?.getTime() || 0) - (getOrderDate(a)?.getTime() || 0))
                     .map((order) => {
                       const orderDate = getOrderDate(order);
-                      const tableNumber = order.tableNumber ?? order.table ?? order.tableNo ?? "-";
                       const paymentLabel = getPaymentMethodLabel(order);
+                      const typeInfo = getOrderTypeInfo(order);
 
                       return (
                         <tr key={order.id} className="hover:bg-slate-50/50 transition">
@@ -424,7 +516,12 @@ export default function Reports() {
                             <div className="font-bold text-sm text-slate-700">{formatTime(orderDate)}</div>
                             <div className="text-xs text-slate-400">{formatDate(orderDate)}</div>
                           </td>
-                          <td className="px-6 py-4 font-bold text-slate-700">№ {tableNumber}</td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex px-3 py-1.5 rounded-lg text-xs font-bold ${typeInfo.badgeClass}`}>
+                              {typeInfo.label}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 font-bold text-slate-700">{getOrderLocationLabel(order)}</td>
                           <td className="px-6 py-4 text-sm text-slate-600">{getOrderItems(order).length} ta mahsulot</td>
                           <td className="px-6 py-4">
                             <span

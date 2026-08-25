@@ -12,10 +12,12 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import { db } from "../../firebase/config.js";
+import { useAuth } from "../../context/AuthContext";
 
 export default function TableGrid() {
   const navigate = useNavigate();
   const auth = getAuth();
+  const { user } = useAuth();
 
   const [tables, setTables] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -109,6 +111,19 @@ export default function TableGrid() {
     [orders]
   );
 
+  // Buyurtma joriy foydalanuvchiga tegishlimi
+  const isMyOrder = useCallback(
+    (order) => {
+      if (!order) return false;
+      // Eski buyurtmalarda waiterId bo'lmasligi mumkin — ularni
+      // "hech kimniki emas" deb emas, tahrirlashga ochiq deb qoldiramiz,
+      // shunda eski ma'lumotlar bilan ishlash buzilmaydi.
+      if (!order.waiterId) return true;
+      return order.waiterId === user?.uid;
+    },
+    [user]
+  );
+
   // Taom va stol holatlarini tekshiruvchi yordamchi funksiyalar
   const checkIsReady = (item) => {
     return (
@@ -167,10 +182,22 @@ export default function TableGrid() {
 
   const handleTableClick = (table) => {
     const order = getActiveOrder(table.number);
+
+    // Stol bo'sh — yangi buyurtma ochish uchun to'g'ridan-to'g'ri o'tamiz
     if (!order) {
       navigate(`/waiter/order?table=${table.number}`);
       return;
     }
+
+    // Stol band, lekin boshqa ofitsiantniki — ichiga kirishga ruxsat yo'q
+    if (!isMyOrder(order)) {
+      toast.warning(
+        `Bu stolda ${order.waiterName || "boshqa ofitsiant"} xizmat qilyapti!`
+      );
+      return;
+    }
+
+    // O'z buyurtmasi — tafsilotlarni ochamiz
     setSelectedTableNumber(table.number);
   };
 
@@ -332,33 +359,38 @@ export default function TableGrid() {
             {tables.map((table) => {
               const status = getTableStatus(table.number);
               const activeOrder = getActiveOrder(table.number);
+              const mine = isMyOrder(activeOrder);
+              const foreignOrder = activeOrder && !mine;
 
-              const tableClass =
-                status === "empty"
-                  ? "bg-[#f8f9fb] border-[#d7dde5] hover:border-[#b7c1cd]"
-                  : status === "occupied"
-                  ? "bg-[#fffdf8] border-[#eab126] shadow-[0_5px_20px_rgba(180,120,0,0.08)]"
-                  : status === "ready"
-                  ? "bg-blue-50 border-blue-500 shadow-[0_5px_20px_rgba(37,99,235,0.15)] animate-pulse"
-                  : "bg-green-50 border-green-400";
+              const tableClass = foreignOrder
+                ? "bg-gray-100 border-gray-300 opacity-80 cursor-not-allowed"
+                : status === "empty"
+                ? "bg-[#f8f9fb] border-[#d7dde5] hover:border-[#b7c1cd]"
+                : status === "occupied"
+                ? "bg-[#fffdf8] border-[#eab126] shadow-[0_5px_20px_rgba(180,120,0,0.08)]"
+                : status === "ready"
+                ? "bg-blue-50 border-blue-500 shadow-[0_5px_20px_rgba(37,99,235,0.15)] animate-pulse"
+                : "bg-green-50 border-green-400";
 
-              const statusText =
-                status === "empty"
-                  ? "Bo'sh"
-                  : status === "occupied"
-                  ? "Tayyorlanmoqda"
-                  : status === "ready"
-                  ? "Tayyor!"
-                  : "Yetkazildi";
+              const statusText = foreignOrder
+                ? "Band (boshqa ofitsiant)"
+                : status === "empty"
+                ? "Bo'sh"
+                : status === "occupied"
+                ? "Tayyorlanmoqda"
+                : status === "ready"
+                ? "Tayyor!"
+                : "Yetkazildi";
 
-              const statusColor =
-                status === "empty"
-                  ? "text-[#2f3742]"
-                  : status === "occupied"
-                  ? "text-[#704124]"
-                  : status === "ready"
-                  ? "text-blue-700"
-                  : "text-green-700";
+              const statusColor = foreignOrder
+                ? "text-gray-500"
+                : status === "empty"
+                ? "text-[#2f3742]"
+                : status === "occupied"
+                ? "text-[#704124]"
+                : status === "ready"
+                ? "text-blue-700"
+                : "text-green-700";
 
               return (
                 <button
@@ -371,14 +403,19 @@ export default function TableGrid() {
                     ${tableClass}
                   `}
                 >
-                  <div className="text-2xl mb-2">🪑</div>
+                  <div className="text-2xl mb-2">{foreignOrder ? "🔒" : "🪑"}</div>
                   <div className="text-xl font-black text-[#26354a]">
                     № {table.number}
                   </div>
                   <div className={`mt-1 text-xs font-bold ${statusColor}`}>
                     {statusText}
                   </div>
-                  {activeOrder && activeOrder.createdAt && (
+                  {foreignOrder && activeOrder?.waiterName && (
+                    <div className="mt-1 text-[10px] font-semibold text-gray-400">
+                      {activeOrder.waiterName}
+                    </div>
+                  )}
+                  {!foreignOrder && activeOrder && activeOrder.createdAt && (
                     <div className="mt-2 text-[10px] font-medium text-gray-500">
                       ◷ {formatTime(activeOrder.createdAt)}
                     </div>

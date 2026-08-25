@@ -11,10 +11,27 @@ import { getAuth, signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { db } from "../../firebase/config.js";
+import { useAuth } from "../../context/AuthContext";
+
+// Har bir oshpaz roliga mos label (headerda ko'rsatish uchun)
+const KITCHEN_TYPE_LABELS = {
+  umumiy: "🍲 Umumiy oshpaz",
+  salatchi: "🥗 Salatchi",
+  somsachi: "🥟 Somsachi",
+  shashlikchi: "🍢 Shashlikchi",
+  pishiriqchi: "🥐 Pishiriqchi",
+  ichimlikchi: "🥤 Ichimlikchi",
+  taomchi: "🍛 Taomchi",
+};
+
+// Faqat shu rollar "hamma narsani ko'rish" huquqiga ega
+// (masalan admin/direktor barcha buyurtmalarni kuzatishi kerak bo'lishi mumkin)
+const SEE_ALL_ROLES = ["umumiy", "admin", "direktor", "director"];
 
 export default function KitchenQueue() {
   const navigate = useNavigate();
   const auth = getAuth();
+  const { role } = useAuth();
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +42,9 @@ export default function KitchenQueue() {
   const knownItemsRef = useRef(new Set());
   const isFirstSnapshotRef = useRef(true);
   const audioUnlockedRef = useRef(false);
+
+  const normalizedRole = (role || "umumiy").toLowerCase();
+  const canSeeAll = SEE_ALL_ROLES.includes(normalizedRole);
 
   // Audio brauzer cheklovini yechish (Unlock Audio)
   useEffect(() => {
@@ -108,9 +128,19 @@ export default function KitchenQueue() {
             data.kitchenItems || data.items || data.products || [];
 
           // Tayyor bo'lmagan buyurtma elementlari
-          const pendingItems = rawItems
+          let pendingItems = rawItems
             .map((item, index) => ({ ...item, __index: index }))
             .filter((i) => !i.readyForWaiter && !i.waiterTaken && !i.isDelivered);
+
+          // ROLGA QARAB FILTRLASH:
+          // Agar foydalanuvchi "hammasini ko'rish" huquqiga ega bo'lmasa,
+          // faqat o'z kitchenType'iga mos taomlarni ko'radi.
+          if (!canSeeAll) {
+            pendingItems = pendingItems.filter((i) => {
+              const itemKitchenType = (i.kitchenType || "umumiy").toLowerCase();
+              return itemKitchenType === normalizedRole;
+            });
+          }
 
           if (pendingItems.length > 0) {
             fetchedOrders.push({
@@ -160,7 +190,7 @@ export default function KitchenQueue() {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [normalizedRole, canSeeAll]);
 
   // Taomni tayyor deb belgilash
   const handleItemReady = async (order, displayedIdx) => {
@@ -216,6 +246,8 @@ export default function KitchenQueue() {
     signOut(auth).then(() => navigate("/login"));
   };
 
+  const roleLabel = KITCHEN_TYPE_LABELS[normalizedRole] || "🍲 Umumiy oshpaz";
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center">
@@ -235,7 +267,9 @@ export default function KitchenQueue() {
       <header className="w-full max-w-2xl bg-white p-4 rounded-2xl shadow-xs flex justify-between items-center mb-6 border border-slate-200">
         <div>
           <h1 className="text-xl font-bold text-amber-600">Oshxona Navbati</h1>
-          <p className="text-xs text-slate-400 font-semibold">Karavan Kafe</p>
+          <p className="text-xs text-slate-400 font-semibold">
+            {roleLabel} {canSeeAll ? "· Barcha buyurtmalar" : ""}
+          </p>
         </div>
 
         <div className="flex gap-2">
@@ -319,6 +353,12 @@ export default function KitchenQueue() {
                         <span className="ml-2 bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-bold rounded-lg">
                           x{item.quantity || item.count || 1}
                         </span>
+                        {canSeeAll && (
+                          <span className="ml-2 bg-slate-200 text-slate-600 px-2 py-0.5 text-xs font-bold rounded-lg">
+                            {KITCHEN_TYPE_LABELS[(item.kitchenType || "umumiy").toLowerCase()] ||
+                              item.kitchenType}
+                          </span>
+                        )}
                         {item.comment && (
                           <p className="text-xs text-rose-500 mt-1 font-medium">
                             💬 {item.comment}
