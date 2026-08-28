@@ -214,22 +214,32 @@ export default function Receipts() {
 
           #printable-receipt {
             position: absolute;
-            left: 0;
-            top: 0;
+            left: 0 !important;
+            top: 0 !important;
             width: 58mm;
             max-width: 58mm;
-            padding: 2mm 3mm;
-            margin: 0;
-            font-size: 10px;
-            line-height: 1.35;
+            padding: 1mm 2mm !important;
+            margin: 0 !important;
+            font-size: 8px;
+            line-height: 1.25;
+            color: #000 !important;
+          }
+
+          #printable-receipt * {
+            color: #000 !important;
           }
 
           #printable-receipt h2 {
-            font-size: 15px;
+            font-size: 12px;
           }
 
           #printable-receipt .receipt-divider {
-            margin: 4px 0;
+            margin: 2px 0 !important;
+            border-color: #000 !important;
+          }
+
+          #printable-receipt .space-y-4 > * + * {
+            margin-top: 3px !important;
           }
         }
       `}</style>
