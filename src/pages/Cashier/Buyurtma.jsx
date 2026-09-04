@@ -692,7 +692,7 @@ export default function Buyurtma() {
 
             <div className="grid flex-1 grid-cols-1 gap-0 overflow-hidden md:grid-cols-[1fr_360px]">
               {/* CHAP: FORMA + TAOMLAR */}
-              <div className="overflow-y-auto p-5">
+          <div className="overflow-y-auto min-h-0 p-5">
                 {/* BUYURTMA TURI */}
                 <div className="mb-4 grid grid-cols-2 gap-3">
                   <button
@@ -789,7 +789,7 @@ export default function Buyurtma() {
               </div>
 
               {/* O'NG: SAVAT + TO'LOV */}
-              <div className="flex flex-col border-t border-slate-100 md:border-l md:border-t-0">
+        <div className="flex flex-col min-h-0 border-t border-slate-100 md:border-l md:border-t-0">
                 <div className="flex-1 overflow-y-auto p-5">
                   <h3 className="mb-3 font-black text-slate-900">Savat</h3>
 
